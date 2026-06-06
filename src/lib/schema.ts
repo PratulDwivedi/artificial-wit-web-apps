@@ -14,6 +14,7 @@ export interface PageControl {
 export interface PageSection {
   id: number
   name: string
+  data?: Record<string, unknown>
   controls: PageControl[]
   is_active: boolean
   tenant_id: number

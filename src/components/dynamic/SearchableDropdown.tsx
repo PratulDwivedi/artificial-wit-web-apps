@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import type { DropdownOption } from '@/lib/schema'
 
@@ -30,8 +31,11 @@ export function SearchableDropdown({
   const [focused,  setFocused]  = useState(-1)
 
   const containerRef  = useRef<HTMLDivElement>(null)
+  const panelRef      = useRef<HTMLDivElement>(null)
   const searchRef     = useRef<HTMLInputElement>(null)
   const listRef       = useRef<HTMLDivElement>(null)
+
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 })
 
   // Derived selections
   const selectedId  = !multiple && value != null ? String(value) : null
@@ -45,10 +49,13 @@ export function SearchableDropdown({
 
   const hasValue = multiple ? selectedIds.length > 0 : selectedId != null
 
-  // Close on outside click
+  // Close on outside click — must also allow clicks inside the portalled panel
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const inTrigger = containerRef.current?.contains(target)
+      const inPanel   = panelRef.current?.contains(target)
+      if (!inTrigger && !inPanel) {
         setOpen(false)
         setQuery('')
         setFocused(-1)
@@ -124,7 +131,14 @@ export function SearchableDropdown({
       <button
         type="button"
         disabled={disabled || loading}
-        onClick={() => !disabled && !loading && setOpen(v => !v)}
+        onClick={() => {
+          if (disabled || loading) return
+          if (!open && containerRef.current) {
+            const r = containerRef.current.getBoundingClientRect()
+            setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+          }
+          setOpen(v => !v)
+        }}
         className="w-full min-h-[38px] flex items-start justify-between gap-2 rounded-xl px-3 py-2 text-[13px] border transition
                    focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)]
                    disabled:opacity-50 disabled:cursor-not-allowed text-left"
@@ -171,11 +185,21 @@ export function SearchableDropdown({
         </div>
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div className="absolute z-50 w-full mt-1 rounded-xl border shadow-2xl overflow-hidden"
-          style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
-
+      {/* Dropdown panel — portalled to body so overflow:hidden on ancestors can't clip it */}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={panelRef}
+          className="rounded-xl border shadow-2xl overflow-hidden"
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: 'var(--c-panel)',
+            borderColor: 'var(--c-border)',
+          }}
+        >
           {/* Search bar */}
           <div className="p-2 border-b" style={{ borderColor: 'var(--c-border)' }}>
             <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 border"
@@ -222,7 +246,8 @@ export function SearchableDropdown({
               )
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Hidden input for native form required validation */}

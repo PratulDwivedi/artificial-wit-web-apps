@@ -7,9 +7,9 @@ import { useRouter, usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, FileText,
-  Sun, Moon, User, Settings, LogOut, Building2, Upload, Loader2, X, Save, Link,
+  Sun, Moon, User, Settings, LogOut, Building2, Upload, Loader2, X, Save, Link, Menu,
 } from 'lucide-react'
-import * as LucideIcons from 'lucide-react'
+import { resolveIcon } from '@/lib/icons'
 import { useTheme, PRIMARY_COLORS } from '@/lib/theme'
 import { useAppStore } from '@/lib/store'
 import { HttpHelper } from '@/lib/http'
@@ -33,11 +33,6 @@ export interface PageItem {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function resolveIcon(name: string | null, fallback: React.ElementType): React.ElementType {
-  if (!name) return fallback
-  const Icon = (LucideIcons as Record<string, unknown>)[name]
-  return typeof Icon === 'function' ? (Icon as React.ElementType) : fallback
-}
 
 function collectQuickLinks(items: PageItem[]): PageItem[] {
   const links: PageItem[] = []
@@ -462,10 +457,12 @@ function UserMenu() {
 export function DynamicSidebar() {
   const router   = useRouter()
   const pathname = usePathname()
-  const activeRoute = pathname.slice(1) // '/knowledge_base' → 'knowledge_base'
+  const activeRoute = pathname.slice(1)
 
   const [pages,   setPages]   = useState<PageItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  const { sidebarOpen, setSidebarOpen } = useAppStore()
 
   useEffect(() => {
     HttpHelper.rpc<{ is_success: boolean; data: PageItem[] }>('fn_get_user_pages', { p_platform_id: 21 })
@@ -478,23 +475,50 @@ export function DynamicSidebar() {
 
   const quickLinks = collectQuickLinks(pages)
 
-  const navigate = (route: string) => router.push(`/${route}`)
+  const navigate = (route: string) => {
+    router.push(`/${route}`)
+    setSidebarOpen(false) // auto-close drawer on mobile after navigation
+  }
 
   return (
-    <aside
-      className="flex flex-col w-[240px] min-w-[240px] h-full border-r"
-      style={{ background: 'var(--c-rail)', borderColor: 'var(--c-border)' }}
-    >
-      {/* Header: logo + app name */}
+    <>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={clsx(
+          'flex flex-col w-[240px] min-w-[240px] h-full border-r',
+          // Mobile: fixed overlay, slide in/out
+          'fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-in-out',
+          // Desktop: back to normal document flow
+          'lg:static lg:z-auto lg:translate-x-0 lg:transition-none',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+        style={{ background: 'var(--c-rail)', borderColor: 'var(--c-border)' }}
+      >
+      {/* Header: logo + app name + mobile close */}
       <div className="flex items-center gap-2.5 px-3 py-3 border-b shrink-0"
         style={{ borderColor: 'var(--c-border)' }}>
         <TenantLogo />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[12px] font-semibold truncate leading-tight" style={{ color: 'var(--c-t1)' }}>
             Artificial Wit
           </p>
           <p className="text-[10px] truncate" style={{ color: 'var(--c-t5)' }}>AI Assistant</p>
         </div>
+        {/* Close button — only visible on mobile */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden p-1.5 rounded-lg transition hover:bg-[var(--c-hover)] shrink-0"
+          style={{ color: 'var(--c-t4)' }}
+        >
+          <X size={15} />
+        </button>
       </div>
 
       {/* Nav area */}
@@ -556,5 +580,6 @@ export function DynamicSidebar() {
         <UserMenu />
       </div>
     </aside>
+    </>
   )
 }

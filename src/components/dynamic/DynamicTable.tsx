@@ -62,8 +62,9 @@ export function DynamicTable({ section }: Props) {
   const [rows,     setRows]     = useState<Row[]>([])
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
+  const isNoneMode = section.display_mode_id === section_display_modes.none
   const [expanded, setExpanded] = useState(
-    section.display_mode_id !== section_display_modes.collapse
+    isNoneMode || section.display_mode_id !== section_display_modes.collapse
   )
 
   const columns = [...(section.controls ?? [])]
@@ -85,11 +86,55 @@ export function DynamicTable({ section }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.binding_name, expanded])
 
+  const tableBody = (
+    <div className="overflow-x-auto">
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={18} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
+        </div>
+      ) : error ? (
+        <p className="p-4 text-[12px]" style={{ color: '#ef4444' }}>{error}</p>
+      ) : rows.length === 0 ? (
+        <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>
+          No records found
+        </p>
+      ) : (
+        <table className="w-full text-[12px] border-collapse">
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
+              {columns.map(col => (
+                <th key={col.id}
+                  className="px-4 py-2.5 text-left font-semibold whitespace-nowrap"
+                  style={{ color: 'var(--c-t3)' }}>
+                  {col.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}
+                style={{ borderBottom: '1px solid var(--c-border)' }}
+                className="transition-colors hover:bg-[var(--c-hover)]">
+                {columns.map(col => (
+                  <td key={col.id} className="px-4 py-2.5" style={{ color: 'var(--c-t2)' }}>
+                    <CellValue control={col} row={row} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+
+  /* display_mode none (30) → no collapsible header, content always visible */
+  if (isNoneMode) return <>{tableBody}</>
+
   return (
     <div className="rounded-2xl border overflow-hidden"
       style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)' }}>
-
-      {/* Section header */}
       <button type="button" onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--c-hover)]"
         style={{ borderBottom: expanded ? '1px solid var(--c-border)' : 'none', background: 'var(--c-topbar)' }}>
@@ -99,55 +144,8 @@ export function DynamicTable({ section }: Props) {
         <span className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>
           {section.name}
         </span>
-        {!loading && rows.length > 0 && (
-          <span className="ml-auto text-[11px] tabular-nums" style={{ color: 'var(--c-t5)' }}>
-            {rows.length} record{rows.length !== 1 ? 's' : ''}
-          </span>
-        )}
       </button>
-
-      {expanded && (
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 size={18} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
-            </div>
-          ) : error ? (
-            <p className="p-4 text-[12px]" style={{ color: '#ef4444' }}>{error}</p>
-          ) : rows.length === 0 ? (
-            <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>
-              No records found
-            </p>
-          ) : (
-            <table className="w-full text-[12px] border-collapse">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
-                  {columns.map(col => (
-                    <th key={col.id}
-                      className="px-4 py-2.5 text-left font-semibold whitespace-nowrap"
-                      style={{ color: 'var(--c-t3)' }}>
-                      {col.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i}
-                    style={{ borderBottom: '1px solid var(--c-border)' }}
-                    className="transition-colors hover:bg-[var(--c-hover)]">
-                    {columns.map(col => (
-                      <td key={col.id} className="px-4 py-2.5" style={{ color: 'var(--c-t2)' }}>
-                        <CellValue control={col} row={row} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+      {expanded && tableBody}
     </div>
   )
 }

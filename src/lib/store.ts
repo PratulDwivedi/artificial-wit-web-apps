@@ -39,6 +39,7 @@ interface AppState {
   tenantName:     string | null
   tenantLogoUrl:  string | null
   startupRoute:   string | null
+  sidebarOpen:    boolean
 
   setUserEmail:     (email: string | null) => void
   setUserName:      (name: string | null)  => void
@@ -46,6 +47,7 @@ interface AppState {
   setTenantName:    (n: string | null)     => void
   setTenantLogoUrl: (url: string | null)   => void
   setStartupRoute:  (route: string | null) => void
+  setSidebarOpen:   (open: boolean)        => void
   setProfile:       (profile: ProfileData) => void
 }
 
@@ -56,6 +58,7 @@ export const useAppStore = create<AppState>((set) => ({
   tenantName:    null,
   tenantLogoUrl: null,
   startupRoute:  null,
+  sidebarOpen:   false,
 
   setUserEmail:     (email)  => set({ userEmail: email }),
   setUserName:      (name)   => set({ userName: name }),
@@ -63,6 +66,7 @@ export const useAppStore = create<AppState>((set) => ({
   setTenantName:    (n)      => set({ tenantName: n }),
   setTenantLogoUrl: (url)    => set({ tenantLogoUrl: url }),
   setStartupRoute:  (route)  => set({ startupRoute: route }),
+  setSidebarOpen:   (open)   => set({ sidebarOpen: open }),
 
   // Convenience: set all profile fields at once
   setProfile: (p) => set({

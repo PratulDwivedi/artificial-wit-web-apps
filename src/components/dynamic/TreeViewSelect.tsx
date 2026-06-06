@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronRight, ChevronDown, X } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 
@@ -126,6 +127,8 @@ export function TreeViewSelect({
   const [loading, setLoading] = useState(false)
   const [open,    setOpen]    = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const panelRef     = useRef<HTMLDivElement>(null)
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 })
 
   // Fetch tree data
   useEffect(() => {
@@ -144,10 +147,11 @@ export function TreeViewSelect({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [binding_list_route_name, cascade_from_binding_name, cascadeValue])
 
-  // Close on outside click
+  // Close on outside click — allow clicks inside the portalled panel
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (!containerRef.current?.contains(target) && !panelRef.current?.contains(target)) {
         setOpen(false)
       }
     }
@@ -196,7 +200,14 @@ export function TreeViewSelect({
       <button
         type="button"
         disabled={disabled || loading}
-        onClick={() => !disabled && !loading && setOpen(v => !v)}
+        onClick={() => {
+          if (disabled || loading) return
+          if (!open && containerRef.current) {
+            const r = containerRef.current.getBoundingClientRect()
+            setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
+          }
+          setOpen(v => !v)
+        }}
         className="w-full min-h-[38px] flex items-start justify-between gap-2 rounded-xl px-3 py-2 text-[13px] border transition
                    focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)]
                    disabled:opacity-50 disabled:cursor-not-allowed text-left"
@@ -240,10 +251,21 @@ export function TreeViewSelect({
         </div>
       </button>
 
-      {/* Tree dropdown */}
-      {open && (
-        <div className="absolute z-50 w-full mt-1 rounded-xl border shadow-2xl overflow-hidden"
-          style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
+      {/* Tree dropdown — portalled to body so overflow:hidden on ancestors can't clip it */}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={panelRef}
+          className="rounded-xl border shadow-2xl overflow-hidden"
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: 'var(--c-panel)',
+            borderColor: 'var(--c-border)',
+          }}
+        >
           <div role="listbox" className="overflow-y-auto max-h-[260px] p-1">
             {nodes.length === 0 ? (
               <p className="px-3 py-3 text-[12px] text-center" style={{ color: 'var(--c-t5)' }}>
@@ -259,7 +281,8 @@ export function TreeViewSelect({
               />
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {required && !hasValue && (

@@ -76,3 +76,32 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--c-t5); }
+
+/* ── 16-column dynamic layout grid ──────────────────────────────────────────
+   Usage:
+     <div className="dyn-grid">
+       <div style={{ '--col-span': 4 }}>...</div>   ← 4/16 wide
+     </div>
+   Responsive: grid shrinks to 12 → 8 → 4 → 1 columns on smaller viewports.
+   Items with --col-span larger than the current column count auto-span fully.
+────────────────────────────────────────────────────────────────────────────── */
+.dyn-grid {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+}
+.dyn-grid > * {
+  grid-column: span var(--col-span, 16);
+  min-width: 0;
+}
+@media (max-width: 1280px) {
+  .dyn-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+}
+@media (max-width: 1024px) {
+  .dyn-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .dyn-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 400px) {
+  .dyn-grid > * { grid-column: 1 / -1; }
+}
