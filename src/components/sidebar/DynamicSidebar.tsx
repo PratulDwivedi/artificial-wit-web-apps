@@ -341,20 +341,6 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ── Profile response shape ─────────────────────────────────────────────────────
-
-interface ProfileData {
-  user_name: string
-  email: string
-  data: { profile_pic?: string | null }
-  tenant: { name?: string | null; data?: { logo_url?: string | null } }
-}
-
-interface ProfileEnvelope {
-  is_success: boolean
-  data: ProfileData[]
-}
-
 // ── UserMenu ───────────────────────────────────────────────────────────────────
 
 function UserMenu() {
@@ -364,10 +350,7 @@ function UserMenu() {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { theme, primary, toggle: toggleTheme, setPrimary } = useTheme()
-  const {
-    profilePic, userName, userEmail,
-    setProfilePic, setUserName, setUserEmail, setTenantName, setTenantLogoUrl,
-  } = useAppStore()
+  const { profilePic, userName, userEmail } = useAppStore()
 
   // Initials from actual user_name ("Demo User" → "DU")
   const initials = userName
@@ -382,20 +365,7 @@ function UserMenu() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Load full profile on mount — sets name, email, pic, and tenant info
-  useEffect(() => {
-    HttpHelper.rpc('fn_get_profile').then(({ data }) => {
-      const env = data as unknown as ProfileEnvelope
-      const profile = env?.data?.[0]
-      if (!profile) return
-      setUserName(profile.user_name ?? null)
-      setUserEmail(profile.email ?? null)
-      setProfilePic(profile.data?.profile_pic ?? null)
-      setTenantName(profile.tenant?.name ?? null)
-      setTenantLogoUrl(profile.tenant?.data?.logo_url ?? null)
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Profile is loaded centrally by AppBootstrap; store values are read here.
 
   const signOut = () => { HttpHelper.clearToken(); router.push('/login') }
 

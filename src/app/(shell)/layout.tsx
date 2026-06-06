@@ -5,7 +5,7 @@ import { DynamicSidebar } from '@/components/sidebar/DynamicSidebar'
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full overflow-hidden">
-      <AppBootstrap userEmail={null} />
+      <AppBootstrap />
       <DynamicSidebar />
       <Suspense fallback={null}>
         {children}

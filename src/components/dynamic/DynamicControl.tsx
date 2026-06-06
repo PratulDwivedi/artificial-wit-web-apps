@@ -1,0 +1,657 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { Loader2, Upload, GripVertical, Plus, Trash2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import {
+  Chart as ChartJS,
+  CategoryScale, LinearScale,
+  BarElement, PointElement, LineElement, ArcElement,
+  Title, Tooltip, Legend,
+} from 'chart.js'
+import { Bar, Line, Pie } from 'react-chartjs-2'
+import { HttpHelper } from '@/lib/http'
+import { APP_CONSTANTS } from '@/lib/constants'
+import type { DropdownOption } from '@/lib/schema'
+import { SearchableDropdown } from './SearchableDropdown'
+import { TreeViewSelect } from './TreeViewSelect'
+
+ChartJS.register(
+  CategoryScale, LinearScale,
+  BarElement, PointElement, LineElement, ArcElement,
+  Title, Tooltip, Legend
+)
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Props {
+  id: number
+  name: string
+  binding_name: string
+  control_type_id: number
+  display_mode_id: number
+  value: unknown
+  onChange: (binding_name: string, value: unknown) => void
+  binding_list_route_name?: string
+  cascade_from_binding_name?: string
+  cascadeValue?: unknown
+  data?: Record<string, unknown>
+}
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
+
+const INPUT_CLASS =
+  'w-full rounded-xl px-3 py-2 text-[13px] border focus:outline-none ' +
+  'focus:ring-2 focus:ring-[var(--c-primary)] transition ' +
+  'disabled:opacity-50 disabled:cursor-not-allowed'
+
+const INPUT_STYLE: React.CSSProperties = {
+  background: 'var(--c-hover)',
+  borderColor: 'var(--c-border-strong)',
+  color: 'var(--c-t1)',
+}
+
+// ── Chart data helper ─────────────────────────────────────────────────────────
+
+interface ChartRow { label: string; value: number; [k: string]: unknown }
+
+function toChartData(raw: unknown) {
+  const rows = Array.isArray(raw) ? (raw as ChartRow[]) : []
+  return {
+    labels: rows.map(r => r.label ?? r.name ?? String(r.id ?? '')),
+    datasets: [{
+      data: rows.map(r => Number(r.value ?? r.count ?? 0)),
+      backgroundColor: [
+        '#6366f1','#8b5cf6','#ec4899','#f59e0b',
+        '#10b981','#3b82f6','#ef4444','#14b8a6',
+      ],
+      borderRadius: 6,
+      borderWidth: 0,
+    }],
+  }
+}
+
+const CHART_OPTIONS = {
+  responsive: true,
+  plugins: { legend: { display: false }, tooltip: { enabled: true } },
+  scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.05)' } } },
+}
+
+// ── ReorderList ───────────────────────────────────────────────────────────────
+
+function ReorderList({ value, onChange, disabled }: {
+  value: unknown; onChange: (v: unknown) => void; disabled: boolean
+}) {
+  const items: string[] = Array.isArray(value) ? (value as unknown[]).map(String) : []
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+
+  const move = (from: number, to: number) => {
+    const next = [...items]
+    const [el] = next.splice(from, 1)
+    next.splice(to, 0, el)
+    onChange(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {items.map((item, i) => (
+        <div key={i}
+          draggable={!disabled}
+          onDragStart={() => setDragIdx(i)}
+          onDragOver={e => { e.preventDefault() }}
+          onDrop={() => { if (dragIdx != null && dragIdx !== i) move(dragIdx, i); setDragIdx(null) }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border text-[13px] transition"
+          style={{
+            borderColor: 'var(--c-border-strong)',
+            background: dragIdx === i ? 'var(--c-active)' : 'var(--c-hover)',
+            color: 'var(--c-t2)',
+            cursor: disabled ? 'default' : 'grab',
+          }}>
+          {!disabled && <GripVertical size={13} style={{ color: 'var(--c-t5)' }} className="shrink-0" />}
+          <span className="flex-1">{item}</span>
+          {!disabled && (
+            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))}>
+              <Trash2 size={12} style={{ color: 'var(--c-t5)' }} className="hover:text-red-500 transition" />
+            </button>
+          )}
+        </div>
+      ))}
+      {!disabled && (
+        <button type="button"
+          onClick={() => onChange([...items, ''])}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] transition"
+          style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t4)', background: 'var(--c-hover)' }}>
+          <Plus size={11} /> Add item
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── EditableList ──────────────────────────────────────────────────────────────
+
+function EditableList({ value, onChange, disabled }: {
+  value: unknown; onChange: (v: unknown) => void; disabled: boolean
+}) {
+  const items: string[] = Array.isArray(value) ? (value as unknown[]).map(String) : []
+  const [input, setInput] = useState('')
+
+  const add = () => {
+    const v = input.trim()
+    if (!v) return
+    onChange([...items, v])
+    setInput('')
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5 min-h-[38px] rounded-xl px-3 py-2 border"
+        style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)' }}>
+        {items.map((item, i) => (
+          <span key={i}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium"
+            style={{ background: 'var(--c-active)', color: 'var(--c-primary)' }}>
+            {item}
+            {!disabled && (
+              <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))}
+                className="hover:opacity-60">✕</button>
+            )}
+          </span>
+        ))}
+        {items.length === 0 && (
+          <span className="text-[13px]" style={{ color: 'var(--c-t5)' }}>No items</span>
+        )}
+      </div>
+      {!disabled && (
+        <div className="flex gap-2">
+          <input value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+            placeholder="Add item…"
+            className={`${INPUT_CLASS} flex-1`} style={INPUT_STYLE} />
+          <button type="button" onClick={add}
+            className="px-3 py-2 rounded-xl border text-[12px] font-medium transition"
+            style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
+            Add
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DynamicControl ────────────────────────────────────────────────────────────
+
+export function DynamicControl({
+  id,
+  name,
+  binding_name,
+  control_type_id,
+  display_mode_id,
+  value,
+  onChange,
+  binding_list_route_name,
+  cascade_from_binding_name,
+  cascadeValue,
+  data,
+}: Props) {
+  const { control_types, control_display_modes } = APP_CONSTANTS
+
+  const isHidden   = display_mode_id === control_display_modes.none_hidden
+  const isDisabled = display_mode_id === control_display_modes.disabled
+                  || display_mode_id === control_display_modes.display_read_only
+  const isRequired = display_mode_id === control_display_modes.require
+
+  // Dropdown / chart options loaded via binding_list_route_name
+  const [options,        setOptions]        = useState<DropdownOption[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(false)
+  const [uploading,      setUploading]      = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const needsOptions =
+    control_type_id === control_types.dropdown ||
+    control_type_id === control_types.dropdownMultiselect ||
+    control_type_id === control_types.barChart ||
+    control_type_id === control_types.lineChart ||
+    control_type_id === control_types.pieChart
+
+  useEffect(() => {
+    if (!binding_list_route_name || !needsOptions) return
+    setLoadingOptions(true)
+    const params: Record<string, unknown> = {}
+    if (cascade_from_binding_name && cascadeValue != null) {
+      params[`p_${cascade_from_binding_name}`] = cascadeValue
+    }
+    HttpHelper.rpc(binding_list_route_name, params)
+      .then(({ data: env }) => {
+        const e = env as unknown as { is_success: boolean; data: DropdownOption[] }
+        if (e?.is_success) setOptions(e.data ?? [])
+      })
+      .finally(() => setLoadingOptions(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [binding_list_route_name, cascade_from_binding_name, cascadeValue])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res  = await fetch('/api/profile-pics/upload', { method: 'POST', body: form })
+      const json = await res.json() as { success: boolean; url?: string }
+      if (json.success && json.url) onChange(binding_name, json.url)
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  if (isHidden) return null
+
+  // Grid span: data.width >= 12 → full width (col-span-2), else single col
+  const colSpan = (data?.width as number ?? 6) >= 12 ? 'col-span-2' : 'col-span-1'
+
+  const renderInput = () => {
+    switch (control_type_id) {
+
+      // ── Text family ────────────────────────────────────────────────────────
+      case control_types.alphaNumeric:
+      case control_types.alphaOnly:
+      case control_types.url:
+        return (
+          <input type="text" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.email:
+        return (
+          <input type="email" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.password:
+        return (
+          <input type="password" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.phoneNumber:
+        return (
+          <input type="tel" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      // ── Number family ──────────────────────────────────────────────────────
+      case control_types.integer:
+        return (
+          <input type="number" step="1"
+            value={value != null ? String(value) : ''}
+            onChange={e => onChange(binding_name, e.target.value ? parseInt(e.target.value, 10) : null)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.decimal:
+      case control_types.currency:
+        return (
+          <input type="number"
+            value={value != null ? String(value) : ''}
+            onChange={e => onChange(binding_name, e.target.value ? parseFloat(e.target.value) : null)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      // ── Date/time family ───────────────────────────────────────────────────
+      case control_types.date:
+        return (
+          <input type="date" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.dateAndTime:
+        return (
+          <input type="datetime-local" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.time:
+        return (
+          <input type="time" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      case control_types.month:
+        return (
+          <input type="month" value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            className={INPUT_CLASS} style={INPUT_STYLE} />
+        )
+
+      // ── Long text ──────────────────────────────────────────────────────────
+      case control_types.textArea:
+        return (
+          <textarea value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            rows={4}
+            className={`${INPUT_CLASS} resize-y`} style={INPUT_STYLE} />
+        )
+
+      // ── Toggle controls ────────────────────────────────────────────────────
+      case control_types.checkbox:
+        return (
+          <div className="pt-1">
+            <input type="checkbox" id={`ctrl-${id}`}
+              checked={(value as boolean) ?? false}
+              onChange={e => onChange(binding_name, e.target.checked)}
+              disabled={isDisabled}
+              className="w-4 h-4 rounded accent-[var(--c-primary)]" />
+          </div>
+        )
+
+      case control_types.switch: {
+        const on = (value as boolean) ?? false
+        return (
+          <div className="pt-1">
+            <button type="button" role="switch" aria-checked={on}
+              disabled={isDisabled}
+              onClick={() => !isDisabled && onChange(binding_name, !on)}
+              className="relative w-10 h-5 rounded-full transition-colors disabled:opacity-50"
+              style={{ background: on ? 'var(--c-primary)' : 'var(--c-border-strong)' }}>
+              <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform"
+                style={{ transform: on ? 'translateX(1.25rem)' : 'translateX(0.125rem)' }} />
+            </button>
+          </div>
+        )
+      }
+
+      // ── Searchable dropdowns ───────────────────────────────────────────────
+      case control_types.dropdown:
+        return (
+          <SearchableDropdown
+            options={options}
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            loading={loadingOptions}
+            disabled={isDisabled}
+            required={isRequired}
+            multiple={false}
+          />
+        )
+
+      case control_types.dropdownMultiselect:
+        return (
+          <SearchableDropdown
+            options={options}
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            loading={loadingOptions}
+            disabled={isDisabled}
+            required={isRequired}
+            multiple
+          />
+        )
+
+      // ── Tree view ──────────────────────────────────────────────────────────
+      case control_types.treeViewSingle:
+        return (
+          <TreeViewSelect
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            binding_list_route_name={binding_list_route_name}
+            cascade_from_binding_name={cascade_from_binding_name}
+            cascadeValue={cascadeValue}
+            disabled={isDisabled}
+            required={isRequired}
+            multiple={false}
+          />
+        )
+
+      case control_types.treeViewMulti:
+        return (
+          <TreeViewSelect
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            binding_list_route_name={binding_list_route_name}
+            cascade_from_binding_name={cascade_from_binding_name}
+            cascadeValue={cascadeValue}
+            disabled={isDisabled}
+            required={isRequired}
+            multiple
+          />
+        )
+
+      // ── File / image ───────────────────────────────────────────────────────
+      case control_types.fileUpload:
+      case control_types.image: {
+        const filename = value as string | null
+        const src = filename
+          ? `/api/profile-pics/download?filename=${encodeURIComponent(filename)}`
+          : null
+        return (
+          <div className="flex items-center gap-3">
+            {control_type_id === control_types.image && src && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={src} alt={name} className="h-12 w-12 rounded-xl object-cover border"
+                style={{ borderColor: 'var(--c-border-strong)' }} />
+            )}
+            {control_type_id === control_types.fileUpload && filename && (
+              <span className="text-[12px] truncate max-w-[160px]" style={{ color: 'var(--c-t3)' }}>
+                {filename.split('/').pop()}
+              </span>
+            )}
+            <input ref={fileRef} type="file"
+              accept={control_type_id === control_types.image ? 'image/*' : undefined}
+              className="hidden" onChange={handleFileUpload} />
+            {!isDisabled && (
+              <button type="button" disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition disabled:opacity-50"
+                style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
+                {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                {uploading ? 'Uploading…' : filename ? 'Replace' : 'Upload'}
+              </button>
+            )}
+          </div>
+        )
+      }
+
+      // ── Hyperlink ──────────────────────────────────────────────────────────
+      case control_types.hyperlink: {
+        const href = (data?.default_value as string) ?? '#'
+        return (
+          <a href={href} className="text-[13px] underline" style={{ color: 'var(--c-primary)' }}>
+            {name}
+          </a>
+        )
+      }
+
+      // ── Color picker ───────────────────────────────────────────────────────
+      case control_types.colorPicker:
+        return (
+          <div className="flex items-center gap-2">
+            <input type="color"
+              value={(value as string) ?? '#6366f1'}
+              onChange={e => onChange(binding_name, e.target.value)}
+              disabled={isDisabled}
+              className="h-10 w-14 rounded-xl border cursor-pointer p-0.5"
+              style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }} />
+            <span className="text-[12px] font-mono" style={{ color: 'var(--c-t3)' }}>
+              {(value as string) ?? '#6366f1'}
+            </span>
+          </div>
+        )
+
+      // ── Geo location ───────────────────────────────────────────────────────
+      case control_types.geoLocation: {
+        const geo = (value as { lat?: number; lng?: number }) ?? {}
+        return (
+          <div className="flex gap-2">
+            <input type="number" placeholder="Latitude"
+              value={geo.lat ?? ''} step="any"
+              onChange={e => onChange(binding_name, { ...geo, lat: e.target.value ? parseFloat(e.target.value) : undefined })}
+              disabled={isDisabled}
+              className={`${INPUT_CLASS} flex-1`} style={INPUT_STYLE} />
+            <input type="number" placeholder="Longitude"
+              value={geo.lng ?? ''} step="any"
+              onChange={e => onChange(binding_name, { ...geo, lng: e.target.value ? parseFloat(e.target.value) : undefined })}
+              disabled={isDisabled}
+              className={`${INPUT_CLASS} flex-1`} style={INPUT_STYLE} />
+          </div>
+        )
+      }
+
+      // ── HTML editor (basic) ────────────────────────────────────────────────
+      case control_types.htmlEditor:
+        return (
+          <textarea value={(value as string) ?? ''}
+            onChange={e => onChange(binding_name, e.target.value)}
+            disabled={isDisabled} required={isRequired}
+            rows={6}
+            placeholder="Enter HTML…"
+            className={`${INPUT_CLASS} resize-y font-mono text-[12px]`} style={INPUT_STYLE} />
+        )
+
+      // ── HTML parser ────────────────────────────────────────────────────────
+      case control_types.htmlParser: {
+        const html = (value as string) ?? ''
+        return (
+          <div
+            className="rounded-xl border px-3 py-2 text-[13px] prose prose-sm max-w-none"
+            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t2)' }}
+            dangerouslySetInnerHTML={{ __html: html }} // eslint-disable-line react/no-danger
+          />
+        )
+      }
+
+      // ── Markdown parser ────────────────────────────────────────────────────
+      case control_types.markdownParser: {
+        const md = (value as string) ?? ''
+        return (
+          <div className="rounded-xl border px-3 py-2 text-[13px]"
+            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t2)' }}>
+            <ReactMarkdown>{md}</ReactMarkdown>
+          </div>
+        )
+      }
+
+      // ── Reorder list ───────────────────────────────────────────────────────
+      case control_types.reorderList:
+        return (
+          <ReorderList
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            disabled={isDisabled}
+          />
+        )
+
+      // ── Tag list ───────────────────────────────────────────────────────────
+      case control_types.list:
+        return (
+          <EditableList
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            disabled={isDisabled}
+          />
+        )
+
+      // ── Charts ─────────────────────────────────────────────────────────────
+      case control_types.barChart: {
+        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        return loadingOptions
+          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
+          : <div className="rounded-xl border p-3" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
+              <Bar data={chartData} options={CHART_OPTIONS as never} height={160} />
+            </div>
+      }
+
+      case control_types.lineChart: {
+        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        return loadingOptions
+          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
+          : <div className="rounded-xl border p-3" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
+              <Line data={{ ...chartData, datasets: [{ ...chartData.datasets[0], tension: 0.4, fill: false, borderColor: '#6366f1', backgroundColor: '#6366f1' }] }}
+                options={CHART_OPTIONS as never} height={160} />
+            </div>
+      }
+
+      case control_types.pieChart: {
+        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        return loadingOptions
+          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
+          : <div className="rounded-xl border p-3 flex justify-center" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
+              <div className="w-48">
+                <Pie data={chartData} options={{ ...CHART_OPTIONS, scales: undefined } as never} />
+              </div>
+            </div>
+      }
+
+      // ── Table row actions (used in table context, no-op in forms) ──────────
+      case control_types.addTableRow:
+        return (
+          <button type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition"
+            style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
+            <Plus size={12} /> {name}
+          </button>
+        )
+
+      case control_types.deleteTableRow:
+        return (
+          <button type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition text-red-500 border-red-200 hover:bg-red-50">
+            <Trash2 size={12} /> {name}
+          </button>
+        )
+
+      // ── Submit (rendered by DynamicForm, not here) ─────────────────────────
+      case control_types.submit:
+      case control_types.hyperlinkRow:
+        return null
+
+      // ── Field condition table ──────────────────────────────────────────────
+      case control_types.fieldConditionTable:
+        return (
+          <div className="rounded-xl border px-3 py-2 text-[12px]"
+            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t5)' }}>
+            Field Condition Table — not yet implemented
+          </div>
+        )
+
+      default:
+        return (
+          <div className="rounded-xl border px-3 py-2 text-[12px] italic"
+            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t5)' }}>
+            Control type {control_type_id} not yet supported
+          </div>
+        )
+    }
+  }
+
+  return (
+    <div className={colSpan}>
+      <label htmlFor={`ctrl-${id}`}
+        className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5"
+        style={{ color: 'var(--c-t4)' }}>
+        {name}
+        {isRequired && <span className="ml-0.5" style={{ color: '#ef4444' }}>*</span>}
+      </label>
+      {renderInput()}
+    </div>
+  )
+}

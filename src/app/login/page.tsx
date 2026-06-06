@@ -24,8 +24,20 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
     const { error: err } = await HttpHelper.login(email, password)
-    if (err) { setError(err); setLoading(false) }
-    else { router.push('/'); router.refresh() }
+    if (err) {
+      setError(err)
+      setLoading(false)
+      return
+    }
+    // Fetch profile to resolve the startup route configured for this user
+    try {
+      const { data } = await HttpHelper.rpc('fn_get_profile')
+      const env   = data as unknown as { is_success: boolean; data: Array<{ data?: { route_name_web?: string } }> }
+      const route = env?.data?.[0]?.data?.route_name_web
+      router.push(route ? `/${route}` : '/')
+    } catch {
+      router.push('/')
+    }
   }
 
   return (
