@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* Primary color (default red — overridden by JS via setProperty) */
+:root {
+  --c-primary:       #dc2626;
+  --c-primary-light: rgba(220, 38, 38, 0.12);
+}
+
+/* Light mode (default) */
+:root {
+  --c-base:          #f5f7fa;
+  --c-panel:         #ffffff;
+  --c-rail:          #f0f2f6;
+  --c-topbar:        #f8f9fb;
+  --c-code:          #f4f5f8;
+  --c-border:        rgba(0, 0, 0, 0.08);
+  --c-border-strong: rgba(0, 0, 0, 0.12);
+  --c-hover:         rgba(0, 0, 0, 0.04);
+  --c-active:        rgba(0, 0, 0, 0.08);
+  --c-t1:            #111827;
+  --c-t2:            #374151;
+  --c-t3:            #4b5563;
+  --c-t4:            #6b7280;
+  --c-t5:            #9ca3af;
+  --c-scrollbar:     rgba(0, 0, 0, 0.12);
+}
+
+/* Dark mode */
+.dark {
+  --c-base:          #13151a;
+  --c-panel:         #1a1d21;
+  --c-rail:          #15171b;
+  --c-topbar:        #1e2126;
+  --c-code:          #12141a;
+  --c-border:        rgba(255, 255, 255, 0.06);
+  --c-border-strong: rgba(255, 255, 255, 0.08);
+  --c-hover:         rgba(255, 255, 255, 0.05);
+  --c-active:        rgba(255, 255, 255, 0.10);
+  --c-t1:            #e2e4e9;
+  --c-t2:            #9ca3af;
+  --c-t3:            #6b7280;
+  --c-t4:            #4b5563;
+  --c-t5:            #374151;
+  --c-scrollbar:     rgba(255, 255, 255, 0.10);
+}
+
+/* Input focus ring using primary colour */
+.input-primary:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--c-primary) !important;
+  box-shadow: 0 0 0 3px var(--c-primary-light);
+}
+
+/* Primary action button */
+.btn-primary {
+  background: var(--c-primary) !important;
+  color: #fff !important;
+}
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+body {
+  background: var(--c-base);
+  color: var(--c-t1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-t5); }

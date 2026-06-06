@@ -1,0 +1,376 @@
+{
+  "environments": [
+    { "id": "local", "name": "AI Service API - Local Dev", "baseUrl": "http://localhost:3001" },
+    { "id": "prod", "name": "AI Service API - Render Cloud - Prod", "baseUrl": "https://ai-service-api.onrender.com" }
+  ],
+  "mcpServer": {
+    "url": "{{url}}/mcp",
+    "connected": false
+  },
+  "collections": [
+    {
+      "id": "access-control",
+      "name": "Admin - Artificial Wit",
+      "icon": "shield",
+      "groups": [
+        {
+          "id": "access",
+          "name": "Access Control",
+          "endpoints": [
+            {
+              "id": "get-token",
+              "name": "Get Token",
+              "method": "POST",
+              "path": "/api/auth/token",
+              "description": "Authenticate and retrieve a JWT access token",
+              "tags": ["auth"],
+              "request": {
+                "headers": [
+                  { "name": "Content-Type", "value": "application/json", "enabled": true }
+                ],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"expires_in\": 3600\n}"
+                },
+                "401": {
+                  "description": "Unauthorized",
+                  "example": "{\n  \"error\": \"Invalid credentials\"\n}"
+                }
+              }
+            },
+            {
+              "id": "role-list",
+              "name": "Role List",
+              "method": "POST",
+              "path": "/api/roles",
+              "description": "Get list of all user roles in the system",
+              "tags": ["roles"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true },
+                  { "name": "Content-Type", "value": "application/json", "enabled": true }
+                ],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"page\": 1,\n  \"limit\": 20\n}"
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"roles\": [\n    { \"id\": 1, \"name\": \"admin\", \"permissions\": [\"read\", \"write\", \"delete\"] },\n    { \"id\": 2, \"name\": \"viewer\", \"permissions\": [\"read\"] }\n  ],\n  \"total\": 2\n}"
+                }
+              }
+            },
+            {
+              "id": "user-list",
+              "name": "User List",
+              "method": "POST",
+              "path": "/api/users",
+              "description": "Get paginated list of all users",
+              "tags": ["users"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true },
+                  { "name": "Content-Type", "value": "application/json", "enabled": true }
+                ],
+                "params": [
+                  { "name": "page", "value": "1", "type": "number", "description": "Page number", "required": false },
+                  { "name": "limit", "value": "20", "type": "number", "description": "Items per page", "required": false }
+                ],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"filters\": {}\n}"
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"users\": [\n    { \"id\": 1, \"name\": \"John Doe\", \"email\": \"john@example.com\", \"role\": \"admin\" }\n  ],\n  \"total\": 150,\n  \"page\": 1\n}"
+                }
+              }
+            },
+            {
+              "id": "page-api-list",
+              "name": "Page/API List",
+              "method": "POST",
+              "path": "/api/pages",
+              "description": "Get list of all pages and API endpoints with access permissions",
+              "tags": ["pages"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"module\": \"all\"\n}"
+                }
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"pages\": [\n    { \"id\": 1, \"path\": \"/dashboard\", \"name\": \"Dashboard\", \"roles\": [\"admin\", \"viewer\"] }\n  ]\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api-artificial-wit",
+      "name": "API Artificial Wit",
+      "icon": "cpu",
+      "groups": [
+        {
+          "id": "assets-group",
+          "name": "Assets",
+          "endpoints": [
+            {
+              "id": "assets-list",
+              "name": "Assets List",
+              "method": "GET",
+              "path": "/api/assets",
+              "description": "Get list of all IT assets with filtering support",
+              "tags": ["assets"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ],
+                "params": [
+                  { "name": "category", "value": "", "type": "string", "description": "Filter by category", "required": false },
+                  { "name": "status", "value": "", "type": "string", "description": "Filter by status (active/inactive)", "required": false },
+                  { "name": "location", "value": "", "type": "string", "description": "Filter by location", "required": false },
+                  { "name": "vendor", "value": "", "type": "string", "description": "Filter by vendor", "required": false },
+                  { "name": "page", "value": "1", "type": "number", "description": "Page number", "required": false }
+                ]
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"assets\": [\n    {\n      \"id\": \"AST001\",\n      \"name\": \"MacBook Pro 16\",\n      \"category\": \"Laptop\",\n      \"status\": \"active\",\n      \"location\": \"Mumbai HQ\",\n      \"vendor\": \"Apple\",\n      \"assigned_to\": \"John Doe\"\n    }\n  ],\n  \"total\": 4553\n}"
+                }
+              },
+              "mcpTool": "assets"
+            },
+            {
+              "id": "asset-create",
+              "name": "Create Asset",
+              "method": "POST",
+              "path": "/api/assets",
+              "description": "Create a new IT asset record",
+              "tags": ["assets"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true },
+                  { "name": "Content-Type", "value": "application/json", "enabled": true }
+                ],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"name\": \"MacBook Pro 16\",\n  \"category\": \"Laptop\",\n  \"status\": \"active\",\n  \"location\": \"Mumbai HQ\",\n  \"vendor\": \"Apple\",\n  \"serial_number\": \"SN123456\",\n  \"purchase_date\": \"2024-01-15\"\n}"
+                }
+              },
+              "responses": {
+                "201": {
+                  "description": "Created",
+                  "example": "{\n  \"id\": \"AST001\",\n  \"message\": \"Asset created successfully\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "orders-group",
+          "name": "Orders",
+          "endpoints": [
+            {
+              "id": "orders-list",
+              "name": "Orders List",
+              "method": "GET",
+              "path": "/api/orders",
+              "description": "Get list of all purchase orders",
+              "tags": ["orders"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ],
+                "params": [
+                  { "name": "status", "value": "", "type": "string", "description": "Filter by order status", "required": false }
+                ]
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"orders\": [\n    { \"id\": \"ORD001\", \"item\": \"Dell Monitor 27\", \"status\": \"delivered\", \"vendor\": \"Dell\", \"amount\": 45000 }\n  ],\n  \"total\": 89\n}"
+                }
+              },
+              "mcpTool": "orders"
+            }
+          ]
+        },
+        {
+          "id": "vendors-group",
+          "name": "Vendors",
+          "endpoints": [
+            {
+              "id": "vendors-list",
+              "name": "Vendors List",
+              "method": "GET",
+              "path": "/api/vendors",
+              "description": "Get list of all registered vendors",
+              "tags": ["vendors"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ]
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"vendors\": [\n    { \"id\": 1, \"name\": \"Apple\", \"category\": \"Hardware\", \"contact\": \"vendor@apple.com\" }\n  ]\n}"
+                }
+              },
+              "mcpTool": "vendors"
+            }
+          ]
+        },
+        {
+          "id": "scanned-group",
+          "name": "Scanned Inventory",
+          "endpoints": [
+            {
+              "id": "scanned-machines",
+              "name": "Scanned Machines",
+              "method": "GET",
+              "path": "/api/scanned/machines",
+              "description": "Get list of scanned machines with Name, Operating system details",
+              "tags": ["scan"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ]
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"machines\": [\n    { \"id\": 1, \"hostname\": \"MACBOOK-PRATUL\", \"os\": \"macOS 14.5\", \"ip\": \"192.168.1.10\", \"last_scan\": \"2024-06-01\" }\n  ],\n  \"total\": 2\n}"
+                }
+              },
+              "mcpTool": "scanned_machines"
+            },
+            {
+              "id": "scanned-softwares",
+              "name": "Scanned Softwares",
+              "method": "GET",
+              "path": "/api/scanned/softwares",
+              "description": "Get list of scanned softwares from laptop, desktop",
+              "tags": ["scan"],
+              "request": {
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{token}}", "enabled": true }
+                ]
+              },
+              "responses": {
+                "200": {
+                  "description": "Success",
+                  "example": "{\n  \"softwares\": [\n    { \"id\": 1, \"name\": \"Visual Studio Code\", \"version\": \"1.89.0\", \"vendor\": \"Microsoft\", \"machine_id\": 1 }\n  ],\n  \"total\": 268\n}"
+                }
+              },
+              "mcpTool": "scanned_softwares"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mcp-tools",
+      "name": "MCP Tools",
+      "icon": "zap",
+      "groups": [
+        {
+          "id": "mcp-tools-group",
+          "name": "Tools",
+          "endpoints": [
+            {
+              "id": "mcp-call",
+              "name": "MCP Call",
+              "method": "MCP",
+              "path": "/mcp",
+              "description": "Direct MCP protocol call to any registered tool",
+              "tags": ["mcp"],
+              "isMcpEndpoint": true,
+              "request": {
+                "headers": [],
+                "body": {
+                  "type": "json",
+                  "content": "{\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"assets\",\n    \"arguments\": {}\n  }\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mcpTools": [
+    {
+      "id": "assets",
+      "name": "assets",
+      "description": "Get List of Assets with asset name, category, location, status, vendor etc.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "description": "Filter by category" },
+          "status": { "type": "string", "description": "Filter by status" },
+          "location": { "type": "string", "description": "Filter by location" }
+        }
+      }
+    },
+    {
+      "id": "orders",
+      "name": "orders",
+      "description": "Get List of Orders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "description": "Filter by order status" }
+        }
+      }
+    },
+    {
+      "id": "vendors",
+      "name": "vendors",
+      "description": "Get List of Vendors",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "scanned_machines",
+      "name": "scanned_machines",
+      "description": "Get List of Scanned Machines with Name, Operating system details",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "scanned_softwares",
+      "name": "scanned_softwares",
+      "description": "Get List of Scanned Softwares from laptop, desktop",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "machine_id": { "type": "number", "description": "Filter by machine ID" }
+        }
+      }
+    }
+  ]
+}
