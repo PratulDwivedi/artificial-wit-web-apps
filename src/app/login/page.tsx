@@ -6,11 +6,8 @@ import Image from 'next/image'
 import { Loader2, Eye, EyeOff, MessageCircle, Library, Plug, Settings2, File } from 'lucide-react'
 
 const FEATURES = [
-  { icon: MessageCircle, title: 'Chat',            description: 'Conversational AI assistant for everyday workflows.' },
-  { icon: Library,       title: 'Knowledge Base',  description: "Centralize and search your organization's knowledge." },
-  { icon: Plug,          title: 'Connectors',      description: 'Integrate with the tools and data sources you rely on.' },
-  { icon: Settings2,     title: 'Configuration',   description: 'LLMs, agents, API credentials, variables and more.' },
-  { icon: File,         title: 'Live Artifacts', description: 'Cluade AI live artifacts' },
+  { icon: File,         title: 'Asset Management', description: 'IT Asset Management' },
+  { icon: File,         title: 'Ticket Management', description: 'IT Ticket Management' },
 ]
 
 export default function LoginPage() {
@@ -42,13 +39,13 @@ export default function LoginPage() {
               <Image src="/logo.png" alt="AW" width={48} height={48} className="w-full h-full object-cover" priority />
             </div>
             <div>
-              <p className="text-[15px] font-semibold" style={{ color: 'var(--c-t1)' }}>Artificial Wit AI Assistant</p>
+              <p className="text-[15px] font-semibold" style={{ color: 'var(--c-t1)' }}>Artificial Wit Apps</p>
               <p className="text-[12px]" style={{ color: 'var(--c-t4)' }}>Your Intelligent Enterprise Assistant</p>
             </div>
           </div>
 
           <h1 className="text-[40px] font-bold leading-tight mb-3" style={{ color: 'var(--c-t1)' }}>
-            Everything your team needs
+            Everything your business needs
           </h1>
           <p className="text-[15px] mb-10 leading-relaxed max-w-md" style={{ color: 'var(--c-t4)' }}>
             A workspace for AI-powered features, knowledge and operations.
@@ -79,7 +76,7 @@ export default function LoginPage() {
               <Image src="/logo.png" alt="AW" width={40} height={40} className="w-full h-full object-cover" priority />
             </div>
             <div>
-              <p className="text-[14px] font-semibold" style={{ color: 'var(--c-t1)' }}>Artificial Wit AI Assistant</p>
+              <p className="text-[14px] font-semibold" style={{ color: 'var(--c-t1)' }}>Artificial Wit Apps</p>
               <p className="text-[11px]" style={{ color: 'var(--c-t4)' }}>Your Intelligent Enterprise Assistant</p>
             </div>
           </div>
