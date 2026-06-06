@@ -165,15 +165,38 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   const [page,        setPage]        = useState(1)
   const [pageSize,    setPageSize]    = useState(25)
 
-  const allControls  = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
-  const columns      = allControls.filter(c => c.display_mode_id !== control_display_modes.none_hidden)
-  const ACTION_TYPES = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow])
-  const dataCols     = columns.filter(c => !ACTION_TYPES.has(c.control_type_id))
+  const allControls      = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
+  const columns          = allControls.filter(c => c.display_mode_id !== control_display_modes.none_hidden)
+  const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow])
+
+  // hyperlinkRow (33) controls → toolbar bulk-action buttons, never table columns
+  const hyperlinkRowCols = columns.filter(c => c.control_type_id === control_types.hyperlinkRow)
+  const hasRowSelect     = hyperlinkRowCols.length > 0
+  const tableCols        = columns.filter(c => c.control_type_id !== control_types.hyperlinkRow)
+  const dataCols         = tableCols.filter(c => !ACTION_TYPES.has(c.control_type_id))
+
+  // Row key field: binding_name of first hyperlinkRow control (typically "id")
+  const rowKeyField = hyperlinkRowCols[0]?.binding_name ?? 'id'
+
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
+
+  // Clear selection when data refreshes or search/filter changes
+  useEffect(() => { setSelectedKeys(new Set()) }, [rows, search, colFilters])
+
+  function rowKey(row: Row): string { return String(resolvePath(row, rowKeyField) ?? '') }
+
+  function toggleRow(key: string) {
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   function colWidth(col: typeof columns[number]): number {
     return (col.data?.width as number || 0) || 4
   }
-  const totalColWidth = columns.reduce((sum, col) => sum + colWidth(col), 0)
+  const totalColWidth = tableCols.reduce((sum, col) => sum + colWidth(col), 0)
 
   useEffect(() => {
     if (!schema.binding_name_get || !expanded) return
@@ -307,6 +330,36 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         )}
       </div>
 
+      {/* Bulk-action buttons (hyperlinkRow controls) */}
+      {hyperlinkRowCols.map(ctrl => {
+        const Icon     = resolveIcon(ctrl.data?.item_icon as string | undefined)
+        const color    = (ctrl.data?.item_color as string) ?? 'var(--c-primary)'
+        const disabled = selectedKeys.size === 0
+        function handleBulkClick() {
+          const template = (ctrl.data?.default_value as string) ?? '#'
+          const key      = ctrl.binding_name
+          const values   = processed
+            .filter(r => selectedKeys.has(rowKey(r)))
+            .map(r => String(resolvePath(r, key) ?? ''))
+            .join(',')
+          router.push(template.replace(/\{(\w+)\}/g, (_, k) => k === key ? values : ''))
+        }
+        return (
+          <button key={ctrl.id} type="button" disabled={disabled} onClick={handleBulkClick}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ color, borderColor: `${color}40`, background: `${color}10` }}>
+            <Icon size={11} />
+            {ctrl.name}
+            {selectedKeys.size > 0 && (
+              <span className="ml-0.5 px-1 rounded text-[10px] font-bold"
+                style={{ background: `${color}25` }}>
+                {selectedKeys.size}
+              </span>
+            )}
+          </button>
+        )
+      })}
+
       {/* Column filters toggle */}
       <button
         onClick={() => setShowFilters(v => !v)}
@@ -348,14 +401,37 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         ) : (
           <table className="w-full text-[12px] border-collapse table-fixed">
             <colgroup>
-              {columns.map(col => (
+              {hasRowSelect && <col style={{ width: '40px' }} />}
+              {tableCols.map(col => (
                 <col key={col.id} style={{ width: `${(colWidth(col) / totalColWidth) * 100}%` }} />
               ))}
             </colgroup>
             <thead>
               {/* Column headers with sort */}
               <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
-                {columns.map(col => {
+                {hasRowSelect && (() => {
+                  const pageKeys      = pageRows.map(r => rowKey(r))
+                  const allSelected   = pageKeys.length > 0 && pageKeys.every(k => selectedKeys.has(k))
+                  const someSelected  = pageKeys.some(k => selectedKeys.has(k))
+                  return (
+                    <th className="px-3 py-2.5 text-center" style={{ width: 40 }}>
+                      <input type="checkbox"
+                        checked={allSelected}
+                        ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={() => {
+                          if (allSelected) {
+                            setSelectedKeys(prev => { const n = new Set(prev); pageKeys.forEach(k => n.delete(k)); return n })
+                          } else {
+                            setSelectedKeys(prev => new Set([...prev, ...pageKeys]))
+                          }
+                        }}
+                        className="cursor-pointer"
+                        style={{ accentColor: 'var(--c-primary)' }}
+                      />
+                    </th>
+                  )
+                })()}
+                {tableCols.map(col => {
                   const isAction = ACTION_TYPES.has(col.control_type_id)
                   return (
                     <th key={col.id}
@@ -377,7 +453,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
               {/* Per-column filter inputs */}
               {showFilters && (
                 <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-panel)' }}>
-                  {columns.map(col => {
+                  {hasRowSelect && <th style={{ width: 40 }} />}
+                  {tableCols.map(col => {
                     const isAction = ACTION_TYPES.has(col.control_type_id)
                     return (
                       <th key={col.id} className="px-2 py-1.5 font-normal">
@@ -406,28 +483,41 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
               )}
             </thead>
             <tbody>
-              {pageRows.map((row, i) => (
-                <tr key={i}
-                  style={{ borderBottom: '1px solid var(--c-border)' }}
-                  className="transition-colors hover:bg-[var(--c-hover)]">
-                  {columns.map(col => (
-                    <td key={col.id} className="px-4 py-2" style={{ color: 'var(--c-t2)' }}>
-                      {ACTION_TYPES.has(col.control_type_id) ? (
-                        <ActionCell control={col} row={row} />
-                      ) : (
-                        (() => {
-                          const val = resolvePath(row, col.binding_name)
-                          if (val === null || val === undefined)
-                            return <span style={{ color: 'var(--c-t5)' }}>—</span>
-                          if (typeof val === 'boolean')
-                            return <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
-                          return <>{String(val)}</>
-                        })()
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {pageRows.map((row, i) => {
+                const key       = rowKey(row)
+                const isChecked = selectedKeys.has(key)
+                return (
+                  <tr key={i}
+                    style={{ borderBottom: '1px solid var(--c-border)' }}
+                    className="transition-colors hover:bg-[var(--c-hover)]">
+                    {hasRowSelect && (
+                      <td className="px-3 py-2 text-center" style={{ width: 40 }}>
+                        <input type="checkbox" checked={isChecked}
+                          onChange={() => toggleRow(key)}
+                          className="cursor-pointer"
+                          style={{ accentColor: 'var(--c-primary)' }}
+                        />
+                      </td>
+                    )}
+                    {tableCols.map(col => (
+                      <td key={col.id} className="px-4 py-2" style={{ color: 'var(--c-t2)' }}>
+                        {ACTION_TYPES.has(col.control_type_id) ? (
+                          <ActionCell control={col} row={row} />
+                        ) : (
+                          (() => {
+                            const val = resolvePath(row, col.binding_name)
+                            if (val === null || val === undefined)
+                              return <span style={{ color: 'var(--c-t5)' }}>—</span>
+                            if (typeof val === 'boolean')
+                              return <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
+                            return <>{String(val)}</>
+                          })()
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
