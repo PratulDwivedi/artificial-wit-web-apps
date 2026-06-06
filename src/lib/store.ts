@@ -40,6 +40,8 @@ interface AppState {
   tenantLogoUrl:  string | null
   startupRoute:   string | null
   sidebarOpen:    boolean
+  editMode:       boolean
+  canEditMode:    boolean
 
   setUserEmail:     (email: string | null) => void
   setUserName:      (name: string | null)  => void
@@ -48,6 +50,7 @@ interface AppState {
   setTenantLogoUrl: (url: string | null)   => void
   setStartupRoute:  (route: string | null) => void
   setSidebarOpen:   (open: boolean)        => void
+  setEditMode:      (v: boolean)           => void
   setProfile:       (profile: ProfileData) => void
 }
 
@@ -59,6 +62,8 @@ export const useAppStore = create<AppState>((set) => ({
   tenantLogoUrl: null,
   startupRoute:  null,
   sidebarOpen:   false,
+  editMode:      false,
+  canEditMode:   false,
 
   setUserEmail:     (email)  => set({ userEmail: email }),
   setUserName:      (name)   => set({ userName: name }),
@@ -67,6 +72,7 @@ export const useAppStore = create<AppState>((set) => ({
   setTenantLogoUrl: (url)    => set({ tenantLogoUrl: url }),
   setStartupRoute:  (route)  => set({ startupRoute: route }),
   setSidebarOpen:   (open)   => set({ sidebarOpen: open }),
+  setEditMode:      (v)      => set({ editMode: v }),
 
   // Convenience: set all profile fields at once
   setProfile: (p) => set({
@@ -76,5 +82,6 @@ export const useAppStore = create<AppState>((set) => ({
     tenantName:    p.tenant?.name ?? null,
     tenantLogoUrl: p.tenant?.data?.logo_url ?? null,
     startupRoute:  p.data?.route_name_web ?? null,
+    canEditMode:   p.data?.show_editor === true,
   }),
 }))

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { ChevronDown, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
+import { useAppStore } from '@/lib/store'
 import type { PageSection, PageSchema, RpcEnvelope } from '@/lib/schema'
 import { DynamicControl } from './DynamicControl'
 
@@ -15,17 +17,30 @@ interface Props {
   onSavingChange?: (saving: boolean) => void
 }
 
-function colSpan(width: unknown, defaultSpan = 6): number {
-  const n = parseInt(String(width ?? defaultSpan), 10)
-  return isNaN(n) ? defaultSpan : Math.min(12, Math.max(1, n))
+function colSpan(width: unknown, defaultSpan = 4): number {
+  const n = parseInt(String(width), 10)
+  return (isNaN(n) || n <= 0) ? defaultSpan : Math.min(12, n)
 }
 
 export function DynamicForm({ section, schema, recordId, saveTrigger, onSavingChange }: Props) {
   const { section_display_modes, control_display_modes } = APP_CONSTANTS
+  const router      = useRouter()
+  const editMode    = useAppStore(s => s.editMode)
+  const searchParams = useSearchParams()
 
   const isNoneMode = section.display_mode_id === section_display_modes.none
 
-  const [formData, setFormData] = useState<Record<string, unknown>>({})
+  // Pre-fill form with query params (e.g. ?section_id=27) when creating a new record
+  const [formData, setFormData] = useState<Record<string, unknown>>(() => {
+    if (recordId) return {}
+    const init: Record<string, unknown> = {}
+    searchParams.forEach((raw, key) => {
+      if (key === 'id') return
+      const n = Number(raw)
+      init[key] = (!isNaN(n) && raw.trim() !== '') ? n : raw
+    })
+    return init
+  })
   const [loading,  setLoading]  = useState(false)
   const [saving,   setSaving]   = useState(false)
   const [msg,      setMsg]      = useState<{ text: string; ok: boolean } | null>(null)
@@ -125,7 +140,21 @@ export function DynamicForm({ section, schema, recordId, saveTrigger, onSavingCh
   /* display_mode none (30) → no collapsible header, content always visible */
   if (isNoneMode) {
     return (
-      <form onSubmit={handleSubmit} className="p-4">
+      <form onSubmit={handleSubmit} className="relative p-4">
+        {editMode && (
+          <div className="absolute top-2 right-2 flex gap-0.5 z-10">
+            <button type="button" onClick={() => router.push(`/page_section?id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Edit section"
+              style={{ color: 'var(--c-t4)' }}>
+              <Pencil size={12} />
+            </button>
+            <button type="button" onClick={() => router.push(`/page_section_control?section_id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Add control"
+              style={{ color: 'var(--c-t4)' }}>
+              <Plus size={12} />
+            </button>
+          </div>
+        )}
         {formBody}
       </form>
     )
@@ -135,17 +164,33 @@ export function DynamicForm({ section, schema, recordId, saveTrigger, onSavingCh
     <div className="rounded-2xl border overflow-hidden"
       style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)' }}>
 
-      <button type="button" onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--c-hover)]"
+      <div className="flex items-center"
         style={{ borderBottom: expanded ? '1px solid var(--c-border)' : 'none', background: 'var(--c-topbar)' }}>
-        {expanded
-          ? <ChevronDown  size={13} style={{ color: 'var(--c-t4)' }} />
-          : <ChevronRight size={13} style={{ color: 'var(--c-t4)' }} />}
-        <span className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>
-          {section.name}
-        </span>
-        {saving && <Loader2 size={12} className="ml-auto animate-spin" style={{ color: 'var(--c-t4)' }} />}
-      </button>
+        <button type="button" onClick={() => setExpanded(v => !v)}
+          className="flex-1 flex items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--c-hover)] min-w-0">
+          {expanded
+            ? <ChevronDown  size={13} style={{ color: 'var(--c-t4)' }} />
+            : <ChevronRight size={13} style={{ color: 'var(--c-t4)' }} />}
+          <span className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>
+            {section.name}
+          </span>
+          {saving && <Loader2 size={12} className="ml-2 animate-spin" style={{ color: 'var(--c-t4)' }} />}
+        </button>
+        {editMode && (
+          <div className="flex items-center gap-0.5 pr-2 shrink-0">
+            <button type="button" onClick={() => router.push(`/page_section?id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Edit section"
+              style={{ color: 'var(--c-t4)' }}>
+              <Pencil size={12} />
+            </button>
+            <button type="button" onClick={() => router.push(`/page_section_control?section_id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Add control"
+              style={{ color: 'var(--c-t4)' }}>
+              <Plus size={12} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {expanded && (
         <form onSubmit={handleSubmit} className="p-4">

@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Loader2, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
 import { BarChart2 } from 'lucide-react'
 import { resolveIcon } from '@/lib/icons'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
+import { useAppStore } from '@/lib/store'
 import type { PageSection, RpcEnvelope } from '@/lib/schema'
 
 interface CardItem {
@@ -102,7 +103,8 @@ function StatCard({ item, index, onNavigate }: {
 
 export function DynamicCard({ section }: Props) {
   const { section_display_modes } = APP_CONSTANTS
-  const router = useRouter()
+  const router   = useRouter()
+  const editMode = useAppStore(s => s.editMode)
 
   const [items,   setItems]   = useState<CardItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -148,21 +150,55 @@ export function DynamicCard({ section }: Props) {
     </div>
   )
 
-  if (isNoneMode) return <>{body}</>
+  if (isNoneMode) return (
+    <div className="relative">
+      {editMode && (
+        <div className="absolute top-2 right-2 flex gap-0.5 z-10">
+          <button type="button" onClick={() => router.push(`/page_section?id=${section.id}`)}
+            className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Edit section"
+            style={{ color: 'var(--c-t4)' }}>
+            <Pencil size={12} />
+          </button>
+          <button type="button" onClick={() => router.push(`/page_section_control?section_id=${section.id}`)}
+            className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Add control"
+            style={{ color: 'var(--c-t4)' }}>
+            <Plus size={12} />
+          </button>
+        </div>
+      )}
+      {body}
+    </div>
+  )
 
   return (
     <div className="rounded-2xl border overflow-hidden"
       style={{ borderColor: 'var(--c-border)', background: 'var(--c-panel)' }}>
-      <button type="button" onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--c-hover)]"
+      <div className="flex items-center"
         style={{ borderBottom: expanded ? '1px solid var(--c-border)' : 'none', background: 'var(--c-topbar)' }}>
-        {expanded
-          ? <ChevronDown  size={13} style={{ color: 'var(--c-t4)' }} />
-          : <ChevronRight size={13} style={{ color: 'var(--c-t4)' }} />}
-        <span className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>
-          {section.name}
-        </span>
-      </button>
+        <button type="button" onClick={() => setExpanded(v => !v)}
+          className="flex-1 flex items-center gap-2 px-4 py-3 text-left transition hover:bg-[var(--c-hover)] min-w-0">
+          {expanded
+            ? <ChevronDown  size={13} style={{ color: 'var(--c-t4)' }} />
+            : <ChevronRight size={13} style={{ color: 'var(--c-t4)' }} />}
+          <span className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>
+            {section.name}
+          </span>
+        </button>
+        {editMode && (
+          <div className="flex items-center gap-0.5 pr-2 shrink-0">
+            <button type="button" onClick={() => router.push(`/page_section?id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Edit section"
+              style={{ color: 'var(--c-t4)' }}>
+              <Pencil size={12} />
+            </button>
+            <button type="button" onClick={() => router.push(`/page_section_control?section_id=${section.id}`)}
+              className="p-1.5 rounded-lg transition hover:bg-[var(--c-hover)]" title="Add control"
+              style={{ color: 'var(--c-t4)' }}>
+              <Plus size={12} />
+            </button>
+          </div>
+        )}
+      </div>
       {expanded && body}
     </div>
   )

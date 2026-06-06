@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Loader2, Upload, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Loader2, Upload, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   Chart as ChartJS,
@@ -12,6 +13,7 @@ import {
 import { Bar, Line, Pie } from 'react-chartjs-2'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
+import { useAppStore } from '@/lib/store'
 import type { DropdownOption } from '@/lib/schema'
 import { SearchableDropdown } from './SearchableDropdown'
 import { TreeViewSelect } from './TreeViewSelect'
@@ -212,6 +214,8 @@ export function DynamicControl({
   data,
 }: Props) {
   const { control_types, control_display_modes } = APP_CONSTANTS
+  const router   = useRouter()
+  const editMode = useAppStore(s => s.editMode)
 
   const isHidden   = display_mode_id === control_display_modes.none_hidden
   const isDisabled = display_mode_id === control_display_modes.disabled
@@ -686,10 +690,18 @@ export function DynamicControl({
   return (
     <div className={colSpan}>
       <label htmlFor={`ctrl-${id}`}
-        className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5"
+        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide mb-1.5"
         style={{ color: 'var(--c-t4)' }}>
         {name}
         {isRequired && <span className="ml-0.5" style={{ color: '#ef4444' }}>*</span>}
+        {editMode && (
+          <button type="button"
+            onClick={e => { e.preventDefault(); router.push(`/page_section_control?id=${id}`) }}
+            className="ml-auto p-0.5 rounded transition hover:bg-[var(--c-hover)] opacity-50 hover:opacity-100"
+            title="Edit control">
+            <Pencil size={10} />
+          </button>
+        )}
       </label>
       {renderInput()}
     </div>

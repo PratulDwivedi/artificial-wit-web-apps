@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { AlertCircle, Eye, Loader2, Menu, Save, Trash2 } from 'lucide-react'
+import { AlertCircle, Eye, Loader2, Menu, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
@@ -38,7 +38,7 @@ export function DynamicPage({ routeName }: Props) {
   const router       = useRouter()
 
   // Must be before any early returns — Rules of Hooks
-  const { setSidebarOpen } = useAppStore()
+  const { setSidebarOpen, editMode, setEditMode, canEditMode } = useAppStore()
 
   useEffect(() => {
     setLoading(true); setError(null); setSchema(null)
@@ -133,6 +133,37 @@ export function DynamicPage({ routeName }: Props) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 ml-4">
+          {/* Edit mode toggle — only for users with is_edit_mode permission */}
+          {canEditMode && <button type="button"
+            onClick={() => setEditMode(!editMode)}
+            className="p-1.5 rounded-lg border transition"
+            title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+            style={{
+              borderColor: editMode ? 'var(--c-primary)' : 'var(--c-border)',
+              background:  editMode ? 'color-mix(in srgb, var(--c-primary) 12%, transparent)' : 'transparent',
+              color:       editMode ? 'var(--c-primary)' : 'var(--c-t4)',
+            }}>
+            <Pencil size={14} />
+          </button>}
+
+          {/* Page-level edit / add-section — only in edit mode */}
+          {editMode && (
+            <>
+              <button type="button"
+                onClick={() => router.push(`/page?id=${schema.id}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] transition hover:bg-[var(--c-hover)]"
+                style={{ borderColor: 'var(--c-border)', color: 'var(--c-t3)' }}>
+                <Pencil size={11} /> Edit Page
+              </button>
+              <button type="button"
+                onClick={() => router.push(`/page_section?page_id=${schema.id}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] transition hover:bg-[var(--c-hover)]"
+                style={{ borderColor: 'var(--c-border)', color: 'var(--c-t3)' }}>
+                <Plus size={11} /> Add Section
+              </button>
+            </>
+          )}
+
           {/* Delete — only when editing a record that has a delete binding */}
           {showDelete && (
             <button type="button" disabled={deleting}
