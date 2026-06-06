@@ -71,10 +71,27 @@ function toChartData(raw: unknown) {
   }
 }
 
+const AXIS_COLOR = 'rgba(107,114,128,0.7)'  // neutral for light + dark
+
 const CHART_OPTIONS = {
   responsive: true,
-  plugins: { legend: { display: false }, tooltip: { enabled: true } },
-  scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.05)' } } },
+  maintainAspectRatio: true,
+  plugins: {
+    legend: { display: false },
+    tooltip: { enabled: true },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      border: { display: false },
+      ticks: { color: AXIS_COLOR, font: { size: 11 } },
+    },
+    y: {
+      grid: { color: 'rgba(107,114,128,0.12)', drawBorder: false },
+      border: { display: false, dash: [4, 4] },
+      ticks: { color: AXIS_COLOR, font: { size: 11 } },
+    },
+  },
 }
 
 // ── ReorderList ───────────────────────────────────────────────────────────────
@@ -575,28 +592,51 @@ export function DynamicControl({
         const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
         return loadingOptions
           ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="rounded-xl border p-3" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
-              <Bar data={chartData} options={CHART_OPTIONS as never} height={160} />
+          : <div className="w-full pt-1">
+              <Bar data={chartData} options={CHART_OPTIONS as never} />
             </div>
       }
 
       case control_types.lineChart: {
         const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        const lineData = {
+          ...chartData,
+          datasets: [{
+            ...chartData.datasets[0],
+            tension: 0.4,
+            fill: true,
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99,102,241,0.08)',
+            pointBackgroundColor: '#6366f1',
+            pointRadius: 3,
+          }],
+        }
         return loadingOptions
           ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="rounded-xl border p-3" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
-              <Line data={{ ...chartData, datasets: [{ ...chartData.datasets[0], tension: 0.4, fill: false, borderColor: '#6366f1', backgroundColor: '#6366f1' }] }}
-                options={CHART_OPTIONS as never} height={160} />
+          : <div className="w-full pt-1">
+              <Line data={lineData} options={CHART_OPTIONS as never} />
             </div>
       }
 
       case control_types.pieChart: {
         const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        const PIE_OPTIONS = {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom' as const,
+              labels: { color: AXIS_COLOR, font: { size: 11 }, padding: 12, boxWidth: 12, boxHeight: 12 },
+            },
+            tooltip: { enabled: true },
+          },
+        }
         return loadingOptions
           ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="rounded-xl border p-3 flex justify-center" style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)' }}>
-              <div className="w-48">
-                <Pie data={chartData} options={{ ...CHART_OPTIONS, scales: undefined } as never} />
+          : <div className="w-full pt-1 flex justify-center">
+              <div style={{ width: '100%', maxWidth: 260 }}>
+                <Pie data={chartData} options={PIE_OPTIONS as never} />
               </div>
             </div>
       }

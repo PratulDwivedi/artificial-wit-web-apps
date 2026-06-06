@@ -53,6 +53,7 @@ export interface PageSchema {
   binding_type_id: number
   binding_name_get?: string
   binding_name_post?: string
+  binding_name_delete?: string
   display_location_id: number
 }
 

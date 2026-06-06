@@ -88,6 +88,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
   inventory:       Boxes,
   shopping_cart:   ShoppingCart,
   cart:            ShoppingCart,
+  Cart:            ShoppingCart,
+  // Person / Ticket aliases
+  Person:          User,
+  Ticket:          Tag,
+  ticket:          Tag,
+  tickets:         Tag,
+  Tickets:         Tag,
   dollar:          DollarSign,
   dollar_sign:     DollarSign,
   money:           DollarSign,

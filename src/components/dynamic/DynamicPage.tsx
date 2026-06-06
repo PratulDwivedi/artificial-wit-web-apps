@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { AlertCircle, Eye, Loader2, Menu, Save } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { AlertCircle, Eye, Loader2, Menu, Save, Trash2 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
@@ -28,9 +28,12 @@ export function DynamicPage({ routeName }: Props) {
   const [error,       setError]       = useState<string | null>(null)
   const [saveTrigger, setSaveTrigger] = useState(0)
   const [savingCount, setSavingCount] = useState(0)
+  const [deleting,    setDeleting]    = useState(false)
+  const [deleteMsg,   setDeleteMsg]   = useState<{ text: string; ok: boolean } | null>(null)
 
   const searchParams = useSearchParams()
   const recordId     = searchParams.get('id') ?? undefined
+  const router       = useRouter()
 
   // Must be before any early returns — Rules of Hooks
   const { setSidebarOpen } = useAppStore()
@@ -51,6 +54,24 @@ export function DynamicPage({ routeName }: Props) {
   const handleSavingChange = (saving: boolean) =>
     setSavingCount(n => Math.max(0, saving ? n + 1 : n - 1))
 
+  const handleDelete = useCallback(async (bindingName: string) => {
+    if (!recordId) return
+    if (!confirm('Are you sure you want to delete this record?')) return
+    setDeleting(true); setDeleteMsg(null)
+    try {
+      const { data, error: err } = await HttpHelper.rpc(bindingName, { p_id: parseInt(recordId, 10) })
+      if (err) throw new Error(err)
+      const env = data as unknown as RpcEnvelope
+      if (!env?.is_success) throw new Error(env?.message ?? 'Delete failed')
+      setDeleteMsg({ text: env.message ?? 'Deleted successfully', ok: true })
+      setTimeout(() => router.back(), 1200)
+    } catch (e) {
+      setDeleteMsg({ text: e instanceof Error ? e.message : 'Delete failed', ok: false })
+    } finally {
+      setDeleting(false)
+    }
+  }, [recordId, router])
+
   if (loading) return (
     <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--c-base)' }}>
       <Loader2 size={20} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
@@ -67,11 +88,12 @@ export function DynamicPage({ routeName }: Props) {
 
   if (!schema) return null
 
-  const { page_types } = APP_CONSTANTS
-  const isFormPage   = schema.page_type_id === page_types.form
-  const isReportPage = schema.page_type_id === page_types.report
-  const isSaving     = savingCount > 0
-  const Icon         = resolveIcon(schema.data?.item_icon)
+  const isEditing  = !!recordId
+  const showSave   = !!schema.binding_name_post
+  const showView   = !!schema.binding_name_get && !schema.binding_name_post
+  const showDelete = isEditing && !!schema.binding_name_delete
+  const isSaving   = savingCount > 0
+  const Icon       = resolveIcon(schema.data?.item_icon)
 
   const sections = [...(schema.sections ?? [])]
     .filter(s => s.is_active)
@@ -86,7 +108,6 @@ export function DynamicPage({ routeName }: Props) {
         style={{ background: 'var(--c-topbar)', borderColor: 'var(--c-border)' }}
       >
         <div className="flex items-center gap-3 min-w-0">
-          {/* Hamburger — only on mobile/tablet when sidebar is hidden */}
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -110,15 +131,31 @@ export function DynamicPage({ routeName }: Props) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 ml-4">
-          {isFormPage && (
-            <button type="button" disabled={isSaving}
+          {/* Delete — only when editing a record that has a delete binding */}
+          {showDelete && (
+            <button type="button" disabled={deleting}
+              onClick={() => handleDelete(schema.binding_name_delete!)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-medium transition disabled:opacity-60"
+              style={{ borderColor: '#fca5a5', color: '#ef4444', background: 'rgba(239,68,68,0.06)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.06)' }}>
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          )}
+
+          {/* Save / Update — driven by binding_name_post */}
+          {showSave && (
+            <button type="button" disabled={isSaving || deleting}
               onClick={() => setSaveTrigger(n => n + 1)}
               className="flex items-center gap-1.5 px-4 py-2 btn-primary rounded-xl text-[13px] font-semibold transition disabled:opacity-60">
               {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-              {isSaving ? 'Saving…' : 'Save'}
+              {isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
             </button>
           )}
-          {isReportPage && (
+
+          {/* View — driven by binding_name_get only (no post binding = read-only page) */}
+          {showView && (
             <button type="button"
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-medium transition"
               style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)', background: 'var(--c-hover)' }}
@@ -129,6 +166,16 @@ export function DynamicPage({ routeName }: Props) {
           )}
         </div>
       </div>
+
+      {/* Delete feedback banner */}
+      {deleteMsg && (
+        <div className="shrink-0 px-6 py-2.5 text-[12px] border-b"
+          style={deleteMsg.ok
+            ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
+            : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
+          {deleteMsg.text}
+        </div>
+      )}
 
       {/* ── Scrollable content — 16-col dynamic grid ───────────────────────── */}
       <div className="flex-1 overflow-y-auto">
@@ -142,7 +189,7 @@ export function DynamicPage({ routeName }: Props) {
                 section={section}
                 schema={schema}
                 recordId={recordId}
-                saveTrigger={isFormPage ? saveTrigger : undefined}
+                saveTrigger={showSave ? saveTrigger : undefined}
                 onSavingChange={handleSavingChange}
               />
             </div>

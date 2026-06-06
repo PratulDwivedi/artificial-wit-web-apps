@@ -105,3 +105,28 @@ body {
 @media (max-width: 400px) {
   .dyn-grid > * { grid-column: 1 / -1; }
 }
+
+/* ── 12-column control grid (used inside form sections) ──────────────────────
+   Controls use a 12-column convention: width:4 = 1/3, width:6 = 1/2, etc.
+   Responsive: 12 → 8 → 6 → 4 → 1 columns.
+────────────────────────────────────────────────────────────────────────────── */
+.ctrl-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+.ctrl-grid > * {
+  grid-column: span var(--col-span, 12);
+  min-width: 0;
+}
+@media (max-width: 1280px) {
+  .ctrl-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (max-width: 1024px) {
+  .ctrl-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .ctrl-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 400px) {
+  .ctrl-grid > * { grid-column: 1 / -1; }
+}

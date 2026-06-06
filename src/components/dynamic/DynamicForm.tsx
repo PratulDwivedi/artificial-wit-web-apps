@@ -17,7 +17,7 @@ interface Props {
 
 function colSpan(width: unknown, defaultSpan = 6): number {
   const n = parseInt(String(width ?? defaultSpan), 10)
-  return isNaN(n) ? defaultSpan : Math.min(16, Math.max(1, n))
+  return isNaN(n) ? defaultSpan : Math.min(12, Math.max(1, n))
 }
 
 export function DynamicForm({ section, schema, recordId, saveTrigger, onSavingChange }: Props) {
@@ -91,7 +91,7 @@ export function DynamicForm({ section, schema, recordId, saveTrigger, onSavingCh
   ) : (
     <>
       {/* 16-col dynamic grid for controls */}
-      <div className="dyn-grid" style={{ gap: '12px 20px' }}>
+      <div className="ctrl-grid" style={{ gap: '12px 20px' }}>
         {visibleControls.map(control => (
           <div
             key={control.id}
