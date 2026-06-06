@@ -10,6 +10,7 @@ import { resolveIcon } from '@/lib/icons'
 import type { PageSchema, PageSection, RpcEnvelope } from '@/lib/schema'
 import { DynamicForm } from './DynamicForm'
 import { DynamicTable } from './DynamicTable'
+import { DynamicReportTable } from './DynamicReportTable'
 import { DynamicCard } from './DynamicCard'
 
 interface Props {
@@ -26,10 +27,11 @@ export function DynamicPage({ routeName }: Props) {
   const [schema,      setSchema]      = useState<PageSchema | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState<string | null>(null)
-  const [saveTrigger, setSaveTrigger] = useState(0)
-  const [savingCount, setSavingCount] = useState(0)
-  const [deleting,    setDeleting]    = useState(false)
-  const [deleteMsg,   setDeleteMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+  const [saveTrigger,  setSaveTrigger] = useState(0)
+  const [savingCount,  setSavingCount] = useState(0)
+  const [viewTrigger,  setViewTrigger] = useState(0)
+  const [deleting,     setDeleting]    = useState(false)
+  const [deleteMsg,    setDeleteMsg]   = useState<{ text: string; ok: boolean } | null>(null)
 
   const searchParams = useSearchParams()
   const recordId     = searchParams.get('id') ?? undefined
@@ -154,9 +156,10 @@ export function DynamicPage({ routeName }: Props) {
             </button>
           )}
 
-          {/* View — driven by binding_name_get only (no post binding = read-only page) */}
+          {/* View — triggers a refresh of all report table sections */}
           {showView && (
             <button type="button"
+              onClick={() => setViewTrigger(n => n + 1)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-medium transition"
               style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)', background: 'var(--c-hover)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)' }}
@@ -190,6 +193,7 @@ export function DynamicPage({ routeName }: Props) {
                 schema={schema}
                 recordId={recordId}
                 saveTrigger={showSave ? saveTrigger : undefined}
+                viewTrigger={showView ? viewTrigger : undefined}
                 onSavingChange={handleSavingChange}
               />
             </div>
@@ -207,12 +211,14 @@ function SectionRenderer({
   schema,
   recordId,
   saveTrigger,
+  viewTrigger,
   onSavingChange,
 }: {
   section: PageSection
   schema: PageSchema
   recordId?: string
   saveTrigger?: number
+  viewTrigger?: number
   onSavingChange?: (saving: boolean) => void
 }) {
   const { child_display_modes } = APP_CONSTANTS
@@ -229,9 +235,16 @@ function SectionRenderer({
         />
       )
 
-    case child_display_modes.dataTable:
     case child_display_modes.dataTableReport:
     case child_display_modes.dataTableReportAdvance:
+      // Report pages fetch from the page-level binding_name_get
+      if (schema.binding_name_get) {
+        return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} />
+      }
+      // Fall through to DynamicTable if no page-level binding (inline table with section binding)
+      return <DynamicTable section={section} />
+
+    case child_display_modes.dataTable:
       return <DynamicTable section={section} />
 
     case child_display_modes.cardItem:
