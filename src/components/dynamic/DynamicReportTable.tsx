@@ -57,13 +57,12 @@ function ActionCell({ control, row }: { control: PageSection['controls'][number]
       type="button"
       onClick={() => router.push(href)}
       title={control.name}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition border"
+      className="inline-flex items-center justify-center p-1.5 rounded-lg transition border"
       style={{ color, borderColor: `${color}40`, background: `${color}10` }}
       onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
       onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
     >
-      <Icon size={12} />
-      {control.name}
+      <Icon size={13} />
     </button>
   )
 }
@@ -435,16 +434,26 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                   const isAction = ACTION_TYPES.has(col.control_type_id)
                   return (
                     <th key={col.id}
-                      className="px-4 py-2.5 text-left font-semibold whitespace-nowrap"
+                      className="px-3 py-1 text-left font-semibold whitespace-nowrap"
                       style={{ color: 'var(--c-t3)' }}>
-                      {isAction ? '' : (
-                        <button type="button"
-                          onClick={() => handleSort(col.binding_name)}
-                          className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
-                          {col.name}
-                          <SortIcon col={col.binding_name} sortKey={sortKey} sortDir={sortDir} />
-                        </button>
-                      )}
+                      <span className="inline-flex items-center gap-1">
+                        {!isAction && (
+                          <button type="button"
+                            onClick={() => handleSort(col.binding_name)}
+                            className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
+                            {col.name}
+                            <SortIcon col={col.binding_name} sortKey={sortKey} sortDir={sortDir} />
+                          </button>
+                        )}
+                        {editMode && (
+                          <button type="button"
+                            onClick={() => router.push(`/page_section_control?id=${col.id}`)}
+                            className="p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
+                            title="Edit control">
+                            <Pencil size={10} />
+                          </button>
+                        )}
+                      </span>
                     </th>
                   )
                 })}
@@ -491,7 +500,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                     style={{ borderBottom: '1px solid var(--c-border)' }}
                     className="transition-colors hover:bg-[var(--c-hover)]">
                     {hasRowSelect && (
-                      <td className="px-3 py-2 text-center" style={{ width: 40 }}>
+                      <td className="px-3 py-0.5 text-center" style={{ width: 40 }}>
                         <input type="checkbox" checked={isChecked}
                           onChange={() => toggleRow(key)}
                           className="cursor-pointer"
@@ -500,7 +509,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                       </td>
                     )}
                     {tableCols.map(col => (
-                      <td key={col.id} className="px-4 py-2" style={{ color: 'var(--c-t2)' }}>
+                      <td key={col.id} className="px-3 py-0.5" style={{ color: 'var(--c-t2)' }}>
                         {ACTION_TYPES.has(col.control_type_id) ? (
                           <ActionCell control={col} row={row} />
                         ) : (
