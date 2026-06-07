@@ -11,12 +11,17 @@ import {
 import { useAppStore } from '@/lib/store'
 import { HttpHelper } from '@/lib/http'
 import { RichEditor } from '@/components/common/RichEditor'
+import { PageControlCondition } from '@/components/common/PageControlCondition'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface LookupItem     { id: number; name: string }
-interface PageField      { id: number; name: string; binding_name: string; control_type: string; control_type_id: number }
-interface Condition      { id: string; page_field: string; operator: string; field_value: string }
+interface PageField      {
+  id: number; name: string; binding_name: string
+  control_type: string; control_type_id: number
+  binding_list_route_name: string | null
+}
+interface Condition      { id: string; control_id: number; operator: string; value: string }
 interface PageNode       { id: number; name: string; parent_id: number; display_order: number; children: PageNode[] }
 interface TemplateRecord {
   id: number; name: string
@@ -27,7 +32,7 @@ interface TemplateRecord {
   conditions: Omit<Condition, 'id'>[]
 }
 
-const OPERATORS = ['equals', 'not equals', 'contains', 'starts with', 'ends with', 'greater than', 'less than']
+const OPERATORS = ['=', '!=', 'IN', 'NOT IN', '>', '<', '>=', '<=', 'LIKE', 'NOT LIKE']
 
 // ── SearchableSelect ──────────────────────────────────────────────────────────
 
@@ -206,13 +211,13 @@ function PageTreeSelect({ pages, value, onChange }: {
   )
 }
 
-// ── FieldSelect — searchable dropdown keyed by binding_name ──────────────────
+// ── FieldSelect — searchable dropdown keyed by control id ────────────────────
 
 function FieldSelect({
   fields, value, onChange, placeholder = 'Select field…',
 }: {
-  fields: PageField[]; value: string
-  onChange: (binding_name: string) => void; placeholder?: string
+  fields: PageField[]; value: number
+  onChange: (id: number) => void; placeholder?: string
 }) {
   const [open, setOpen]     = useState(false)
   const [search, setSearch] = useState('')
@@ -220,7 +225,7 @@ function FieldSelect({
   const triggerRef  = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const selected = fields.find(f => f.binding_name === value)
+  const selected = fields.find(f => f.id === value)
   const filtered = search
     ? fields.filter(f =>
         f.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -280,7 +285,7 @@ function FieldSelect({
         }}>
         <span className="flex-1 truncate">{selected?.name ?? placeholder}</span>
         {selected && (
-          <button type="button" onMouseDown={e => { e.stopPropagation(); onChange('') }}
+          <button type="button" onMouseDown={e => { e.stopPropagation(); onChange(0) }}
             className="shrink-0 hover:opacity-70" style={{ color: 'var(--c-t4)' }}>
             <X size={11} />
           </button>
@@ -302,12 +307,12 @@ function FieldSelect({
             {filtered.length === 0
               ? <div className="py-3 text-center text-[11px]" style={{ color: 'var(--c-t4)' }}>No results</div>
               : filtered.map(f => (
-                <button key={f.binding_name} type="button"
-                  onClick={() => { onChange(f.binding_name); setOpen(false); setSearch('') }}
+                <button key={f.id} type="button"
+                  onClick={() => { onChange(f.id); setOpen(false); setSearch('') }}
                   className="w-full px-3 py-1.5 text-left text-[12px] transition flex items-center justify-between gap-2"
-                  style={{ background: f.binding_name === value ? 'var(--c-active)' : undefined, color: f.binding_name === value ? 'var(--c-primary)' : 'var(--c-t2)' }}
-                  onMouseEnter={e => { if (f.binding_name !== value) e.currentTarget.style.background = 'var(--c-hover)' }}
-                  onMouseLeave={e => { if (f.binding_name !== value) e.currentTarget.style.background = '' }}>
+                  style={{ background: f.id === value ? 'var(--c-active)' : undefined, color: f.id === value ? 'var(--c-primary)' : 'var(--c-t2)' }}
+                  onMouseEnter={e => { if (f.id !== value) e.currentTarget.style.background = 'var(--c-hover)' }}
+                  onMouseLeave={e => { if (f.id !== value) e.currentTarget.style.background = '' }}>
                   <span className="truncate">{f.name}</span>
                   <code className="text-[9px] font-mono shrink-0" style={{ color: 'var(--c-t5)' }}>
                     {`{{${f.binding_name}}}`}
@@ -442,10 +447,10 @@ export function TemplatePage() {
         p_language_id:          languageId,
         p_page_orientation_id:  orientationId,
         p_is_enabled:           isEnabled,
-        p_header_html:      headerHtml,
-        p_body_html:        bodyHtml,
-        p_footer_html:      footerHtml,
-        p_conditions:       conditions,
+        p_page_header:      headerHtml,
+        p_page_body:        bodyHtml,
+        p_page_footer:      footerHtml,
+        p_conditions:       conditions.map(({ id: _id, ...rest }) => rest),
       }
       const { data, error } = await HttpHelper.rpc('fn_save_template', payload)
       if (error) throw new Error(error)
@@ -458,9 +463,9 @@ export function TemplatePage() {
   }, [templateName, templateTypeId, pageId, languageId, orientationId, isEnabled, headerHtml, bodyHtml, footerHtml, conditions, recordId])
 
   function addCondition() {
-    setConditions(prev => [...prev, { id: crypto.randomUUID(), page_field: '', operator: 'equals', field_value: '' }])
+    setConditions(prev => [...prev, { id: crypto.randomUUID(), control_id: 0, operator: '=', value: '' }])
   }
-  function updateCondition(id: string, key: keyof Omit<Condition, 'id'>, val: string) {
+  function updateCondition(id: string, key: keyof Omit<Condition, 'id'>, val: string | number) {
     setConditions(prev => prev.map(c => c.id === id ? { ...c, [key]: val } : c))
   }
   function removeCondition(id: string) {
@@ -649,37 +654,43 @@ export function TemplatePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {conditions.map(cond => (
-                      <tr key={cond.id} className="border-b" style={{ borderColor: 'var(--c-border)' }}>
-                        <td className="py-2 pr-3">
-                          <FieldSelect
-                            fields={pageFields}
-                            value={cond.page_field}
-                            onChange={val => updateCondition(cond.id, 'page_field', val)}
-                          />
-                        </td>
-                        <td className="py-2 pr-3">
-                          <select value={cond.operator} onChange={e => updateCondition(cond.id, 'operator', e.target.value)}
-                            className="w-full rounded-lg px-2 py-1.5 text-[12px] border"
-                            style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)', color: 'var(--c-t1)' }}>
-                            {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
-                          </select>
-                        </td>
-                        <td className="py-2 pr-3">
-                          <input type="text" value={cond.field_value} onChange={e => updateCondition(cond.id, 'field_value', e.target.value)}
-                            placeholder="Value…"
-                            className="w-full rounded-lg px-2 py-1.5 text-[12px] border"
-                            style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)', color: 'var(--c-t1)' }} />
-                        </td>
-                        <td className="py-2">
-                          <button type="button" onClick={() => removeCondition(cond.id)}
-                            className="p-1.5 rounded-lg transition hover:bg-red-500/10"
-                            style={{ color: '#ef4444' }}>
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {conditions.map(cond => {
+                      const selectedField = pageFields.find(f => f.id === cond.control_id) ?? null
+                      return (
+                        <tr key={cond.id} className="border-b" style={{ borderColor: 'var(--c-border)' }}>
+                          <td className="py-2 pr-3">
+                            <FieldSelect
+                              fields={pageFields}
+                              value={cond.control_id}
+                              onChange={val => setConditions(prev => prev.map(c =>
+                                c.id === cond.id ? { ...c, control_id: val, value: '' } : c
+                              ))}
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <select value={cond.operator} onChange={e => updateCondition(cond.id, 'operator', e.target.value)}
+                              className="w-full rounded-lg px-2 py-1.5 text-[12px] border"
+                              style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)', color: 'var(--c-t1)' }}>
+                              {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
+                            </select>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <PageControlCondition
+                              field={selectedField}
+                              value={cond.value}
+                              onChange={val => updateCondition(cond.id, 'value', val)}
+                            />
+                          </td>
+                          <td className="py-2">
+                            <button type="button" onClick={() => removeCondition(cond.id)}
+                              className="p-1.5 rounded-lg transition hover:bg-red-500/10"
+                              style={{ color: '#ef4444' }}>
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
