@@ -98,7 +98,7 @@ const CHART_OPTIONS = {
   },
 }
 
-// ── ReorderList ───────────────────────────────────────────────────────────────
+// ── ReorderList (free-text items, no binding) ─────────────────────────────────
 
 function ReorderList({ value, onChange, disabled }: {
   value: unknown; onChange: (v: unknown) => void; disabled: boolean
@@ -145,6 +145,85 @@ function ReorderList({ value, onChange, disabled }: {
           <Plus size={11} /> Add item
         </button>
       )}
+    </div>
+  )
+}
+
+// ── BindReorderList (items from API, no add/remove, names shown) ──────────────
+
+interface DropdownOptionShape { id: number | string; name: string; [k: string]: unknown }
+
+function BindReorderList({ options, value, onChange, disabled, loading }: {
+  options: DropdownOptionShape[]
+  value: unknown
+  onChange: (items: { id: number | string; display_order: number }[]) => void
+  disabled: boolean
+  loading: boolean
+}) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+
+  // Build id→name lookup
+  const nameMap = new Map(options.map(o => [String(o.id), o.name]))
+
+  // Derive ordered IDs from value (supports both plain-id array and {id,display_order}[] format)
+  const orderedIds: string[] = (() => {
+    const optionIds = options.map(o => String(o.id))
+    if (!Array.isArray(value) || (value as unknown[]).length === 0) return optionIds
+    const items = value as unknown[]
+    // Detect {id, display_order} format
+    const isObjects = items.length > 0 && typeof items[0] === 'object' && items[0] !== null && 'id' in (items[0] as object)
+    const valueIds: string[] = isObjects
+      ? [...(items as { id: unknown; display_order?: unknown }[])]
+          .sort((a, b) => Number(a.display_order ?? 0) - Number(b.display_order ?? 0))
+          .map(item => String(item.id))
+      : items.map(v => String(v))
+    const optionSet = new Set(optionIds)
+    const valueSet  = new Set(valueIds)
+    return [
+      ...valueIds.filter(id => optionSet.has(id)),
+      ...optionIds.filter(id => !valueSet.has(id)),
+    ]
+  })()
+
+  function move(from: number, to: number) {
+    const next = [...orderedIds]
+    const [el] = next.splice(from, 1)
+    next.splice(to, 0, el)
+    onChange(next.map((id, i) => {
+      const orig = options.find(o => String(o.id) === id)
+      return { id: orig ? orig.id : id, display_order: i + 1 }
+    }))
+  }
+
+  if (loading) return (
+    <div className="flex items-center gap-2 py-3 text-[12px]" style={{ color: 'var(--c-t4)' }}>
+      <Loader2 size={13} className="animate-spin" /> Loading…
+    </div>
+  )
+
+  if (orderedIds.length === 0) return (
+    <p className="text-[12px] py-2" style={{ color: 'var(--c-t5)' }}>No items</p>
+  )
+
+  return (
+    <div className="flex flex-col gap-1">
+      {orderedIds.map((id, i) => (
+        <div key={id}
+          draggable={!disabled}
+          onDragStart={() => setDragIdx(i)}
+          onDragOver={e => e.preventDefault()}
+          onDrop={() => { if (dragIdx != null && dragIdx !== i) move(dragIdx, i); setDragIdx(null) }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border text-[13px] transition select-none"
+          style={{
+            borderColor: 'var(--c-border-strong)',
+            background: dragIdx === i ? 'var(--c-active)' : 'var(--c-hover)',
+            color: 'var(--c-t2)',
+            cursor: disabled ? 'default' : 'grab',
+          }}>
+          {!disabled && <GripVertical size={13} style={{ color: 'var(--c-t5)' }} className="shrink-0" />}
+          <span className="flex-1">{nameMap.get(id) ?? id}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -234,6 +313,7 @@ export function DynamicControl({
   const needsOptions =
     control_type_id === control_types.dropdown ||
     control_type_id === control_types.dropdownMultiselect ||
+    control_type_id === control_types.reorderList ||
     control_type_id === control_types.barChart ||
     control_type_id === control_types.lineChart ||
     control_type_id === control_types.pieChart
@@ -253,6 +333,15 @@ export function DynamicControl({
       .finally(() => setLoadingOptions(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [binding_list_route_name, cascade_from_binding_name, cascadeValue])
+
+  // When options load for a bound reorderList and value is empty, initialise with natural order
+  useEffect(() => {
+    if (control_type_id !== control_types.reorderList || !binding_list_route_name) return
+    if (options.length === 0) return
+    if (Array.isArray(value) && (value as unknown[]).length > 0) return
+    onChange(binding_name, options.map((o, i) => ({ id: o.id, display_order: i + 1 })))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -576,6 +665,19 @@ export function DynamicControl({
 
       // ── Reorder list ───────────────────────────────────────────────────────
       case control_types.reorderList:
+        // Bound variant: items come from API, names shown, no add/remove
+        if (binding_list_route_name) {
+          return (
+            <BindReorderList
+              options={options as DropdownOptionShape[]}
+              value={value}
+              onChange={ids => onChange(binding_name, ids)}
+              disabled={isDisabled}
+              loading={loadingOptions}
+            />
+          )
+        }
+        // Free-text variant: items are raw strings with add/remove
         return (
           <ReorderList
             value={value}
