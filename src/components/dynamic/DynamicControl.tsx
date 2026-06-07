@@ -38,6 +38,8 @@ interface Props {
   cascade_from_binding_name?: string
   cascadeValue?: unknown
   data?: Record<string, unknown>
+  /** When true, renders only the input element — no label, no grid wrapper. For table cell use. */
+  compact?: boolean
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -212,6 +214,7 @@ export function DynamicControl({
   cascade_from_binding_name,
   cascadeValue,
   data,
+  compact = false,
 }: Props) {
   const { control_types, control_display_modes } = APP_CONSTANTS
   const router   = useRouter()
@@ -686,6 +689,9 @@ export function DynamicControl({
         )
     }
   }
+
+  // Compact mode: table cells — just the raw input, no label or grid wrapper
+  if (compact) return <>{renderInput()}</>
 
   return (
     <div className={colSpan}>

@@ -393,6 +393,7 @@ function SectionRenderer({
       if (schema.binding_name_get) {
         return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} />
       }
+      // Fallback: read-only table via section.binding_name fetch
       return (
         <DynamicTable
           section={section}
@@ -401,9 +402,12 @@ function SectionRenderer({
       )
 
     case child_display_modes.dataTable:
+      // Editable table — cells are DynamicControl; schema + recordId enable loading existing rows
       return (
         <DynamicTable
           section={section}
+          schema={schema}
+          recordId={recordId}
           onDataChange={rows => onDataChange(section.id, rows)}
         />
       )
