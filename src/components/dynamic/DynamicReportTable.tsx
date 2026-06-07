@@ -400,6 +400,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         ) : (
           <table className="w-full text-[12px] border-collapse table-fixed">
             <colgroup>
+              <col style={{ width: '44px' }} />
               {hasRowSelect && <col style={{ width: '40px' }} />}
               {tableCols.map(col => (
                 <col key={col.id} style={{ width: `${(colWidth(col) / totalColWidth) * 100}%` }} />
@@ -408,6 +409,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
             <thead>
               {/* Column headers with sort */}
               <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
+                <th className="px-3 py-1 text-center font-semibold select-none"
+                  style={{ color: 'var(--c-t4)', width: 44 }}>#</th>
                 {hasRowSelect && (() => {
                   const pageKeys      = pageRows.map(r => rowKey(r))
                   const allSelected   = pageKeys.length > 0 && pageKeys.every(k => selectedKeys.has(k))
@@ -462,6 +465,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
               {/* Per-column filter inputs */}
               {showFilters && (
                 <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-panel)' }}>
+                  <th style={{ width: 44 }} />
                   {hasRowSelect && <th style={{ width: 40 }} />}
                   {tableCols.map(col => {
                     const isAction = ACTION_TYPES.has(col.control_type_id)
@@ -495,10 +499,13 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
               {pageRows.map((row, i) => {
                 const key       = rowKey(row)
                 const isChecked = selectedKeys.has(key)
+                const rowIndex  = (page - 1) * pageSize + i + 1
                 return (
                   <tr key={i}
                     style={{ borderBottom: '1px solid var(--c-border)' }}
                     className="transition-colors hover:bg-[var(--c-hover)]">
+                    <td className="px-3 py-0.5 text-center select-none"
+                      style={{ color: 'var(--c-t5)', width: 44 }}>{rowIndex}</td>
                     {hasRowSelect && (
                       <td className="px-3 py-0.5 text-center" style={{ width: 40 }}>
                         <input type="checkbox" checked={isChecked}

@@ -110,6 +110,8 @@ export function DynamicTable({ section, onDataChange }: Props) {
         <table className="w-full text-[12px] border-collapse">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
+              <th className="px-4 py-2.5 text-center font-semibold select-none"
+                style={{ color: 'var(--c-t4)', width: 44 }}>#</th>
               {columns.map(col => (
                 <th key={col.id}
                   className="px-4 py-2.5 text-left font-semibold whitespace-nowrap"
@@ -134,6 +136,8 @@ export function DynamicTable({ section, onDataChange }: Props) {
               <tr key={i}
                 style={{ borderBottom: '1px solid var(--c-border)' }}
                 className="transition-colors hover:bg-[var(--c-hover)]">
+                <td className="px-4 py-2.5 text-center select-none"
+                  style={{ color: 'var(--c-t5)', width: 44 }}>{i + 1}</td>
                 {columns.map(col => (
                   <td key={col.id} className="px-4 py-2.5" style={{ color: 'var(--c-t2)' }}>
                     <CellValue control={col} row={row} />
