@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronRight, Loader2, Pencil, Plus } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
@@ -14,6 +14,7 @@ interface Props {
   schema: PageSchema
   recordId?: string
   onDataChange?: (data: Record<string, unknown>) => void
+  sharedData?: Record<string, unknown>
 }
 
 function colSpan(width: unknown, defaultSpan = 4): number {
@@ -34,7 +35,7 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return obj[path]
 }
 
-export function DynamicForm({ section, schema, recordId, onDataChange }: Props) {
+export function DynamicForm({ section, schema, recordId, onDataChange, sharedData }: Props) {
   const { section_display_modes, control_display_modes } = APP_CONSTANTS
   const router      = useRouter()
   const editMode    = useAppStore(s => s.editMode)
@@ -73,10 +74,15 @@ export function DynamicForm({ section, schema, recordId, onDataChange }: Props) 
       .finally(() => setLoading(false))
   }, [recordId, schema.binding_name_get])
 
+  // Keep a stable ref so the effect below doesn't re-fire when the callback
+  // reference changes (e.g. when DynamicPage re-renders after sharedData update)
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
+
   // Report current form state to the page whenever it changes
   useEffect(() => {
-    onDataChange?.(formData)
-  }, [formData, onDataChange])
+    onDataChangeRef.current?.(formData)
+  }, [formData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = useCallback((name: string, value: unknown) => {
     setFormData(prev => ({ ...prev, [name]: value }))
@@ -103,7 +109,8 @@ export function DynamicForm({ section, schema, recordId, onDataChange }: Props) 
               onChange={handleChange}
               cascadeValue={
                 control.cascade_from_binding_name
-                  ? getNestedValue(formData, control.cascade_from_binding_name)
+                  ? (getNestedValue(formData, control.cascade_from_binding_name)
+                      ?? (sharedData ? getNestedValue(sharedData, control.cascade_from_binding_name) : undefined))
                   : undefined
               }
             />

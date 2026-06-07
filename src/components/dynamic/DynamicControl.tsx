@@ -17,6 +17,7 @@ import { useAppStore } from '@/lib/store'
 import type { DropdownOption } from '@/lib/schema'
 import { SearchableDropdown } from './SearchableDropdown'
 import { TreeViewSelect } from './TreeViewSelect'
+import { FieldConditionTable } from '@/components/common/FieldConditionTable'
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -339,9 +340,9 @@ export function DynamicControl({
     if (control_type_id !== control_types.reorderList || !binding_list_route_name) return
     if (options.length === 0) return
     if (Array.isArray(value) && (value as unknown[]).length > 0) return
-    onChange(binding_name, options.map((o, i) => ({ id: o.id, display_order: i + 1 })))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options])
+    const defaultOrder = options.map((o, i) => ({ id: o.id, display_order: i + 1 }))
+    onChange(binding_name, defaultOrder)
+  }, [binding_list_route_name, binding_name, control_type_id, options, value, onChange])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -776,10 +777,14 @@ export function DynamicControl({
       // ── Field condition table ──────────────────────────────────────────────
       case control_types.fieldConditionTable:
         return (
-          <div className="rounded-xl border px-3 py-2 text-[12px]"
-            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t5)' }}>
-            Field Condition Table — not yet implemented
-          </div>
+          <FieldConditionTable
+            value={value}
+            onChange={v => onChange(binding_name, v)}
+            binding_list_route_name={binding_list_route_name}
+            cascade_from_binding_name={cascade_from_binding_name}
+            cascadeValue={cascadeValue}
+            disabled={isDisabled}
+          />
         )
 
       default:

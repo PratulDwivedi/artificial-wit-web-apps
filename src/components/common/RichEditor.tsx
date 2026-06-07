@@ -125,7 +125,7 @@ export function RichEditor({ value, onChange, onFocus, editorRef }: RichEditorPr
       {/* ── Visual editing area ── */}
       <div
         ref={editorRef as React.RefObject<HTMLDivElement>}
-        contentEditable={mode === 'visual'}
+        contentEditable="true"
         suppressContentEditableWarning
         onInput={syncToParent}
         onFocus={() => { isFocusedRef.current = true; onFocus?.() }}

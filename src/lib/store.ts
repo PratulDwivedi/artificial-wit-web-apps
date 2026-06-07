@@ -1,9 +1,6 @@
 'use client'
 import { create } from 'zustand'
 
-export type SectionId =
-  | 'chat' | 'knowledge-base' | 'agents'
-  | 'llm' | 'prompts' | 'profile' | 'settings'
 
 export interface ProfileData {
   id: number

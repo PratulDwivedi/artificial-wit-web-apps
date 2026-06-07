@@ -72,6 +72,29 @@ function setPayloadValue(payload: Record<string, unknown>, bindingName: string, 
   setNestedValue(payload[payloadKey] as Record<string, unknown>, rest, val)
 }
 
+function isEqualData(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    return a.every((item, index) => item === b[index])
+  }
+  if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    const aKeys = Object.keys(a as Record<string, unknown>)
+    const bKeys = Object.keys(b as Record<string, unknown>)
+    if (aKeys.length !== bKeys.length) return false
+    return aKeys.every(key => Object.prototype.hasOwnProperty.call(b, key)
+      && (a as Record<string, unknown>)[key] === (b as Record<string, unknown>)[key])
+  }
+  return false
+}
+
+function shallowEqualRecords(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every(key => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
+}
+
 /**
  * Build the unified RPC payload from all section data.
  * - Form sections: emit p_<binding_name> for every control defined in the schema
@@ -124,6 +147,8 @@ export function DynamicPage({ routeName }: Props) {
 
   // Accumulates the latest data from each section (keyed by section.id)
   const sectionDataRef = useRef(new Map<number, unknown>())
+  // Merged flat data from all sections — used for cross-section cascade resolution
+  const [sharedData, setSharedData] = useState<Record<string, unknown>>({})
 
   const searchParams = useSearchParams()
   const recordId     = searchParams.get('id') ?? undefined
@@ -147,7 +172,15 @@ export function DynamicPage({ routeName }: Props) {
 
   // Called by each section whenever its data changes
   const handleSectionData = useCallback((sectionId: number, data: unknown) => {
+    const prevData = sectionDataRef.current.get(sectionId)
+    if (isEqualData(prevData, data)) return
     sectionDataRef.current.set(sectionId, data)
+    // Rebuild merged flat data for cross-section cascade resolution
+    const merged: Record<string, unknown> = {}
+    for (const [, sData] of sectionDataRef.current) {
+      if (typeof sData === 'object' && sData !== null) Object.assign(merged, sData)
+    }
+    setSharedData(prev => shallowEqualRecords(prev, merged) ? prev : merged)
   }, [])
 
   // Single page-level save — builds payload from schema controls across all sections
@@ -351,6 +384,7 @@ export function DynamicPage({ routeName }: Props) {
                 recordId={recordId}
                 viewTrigger={showView ? viewTrigger : undefined}
                 onDataChange={handleSectionData}
+                sharedData={sharedData}
               />
             </div>
           ))}
@@ -368,12 +402,14 @@ function SectionRenderer({
   recordId,
   viewTrigger,
   onDataChange,
+  sharedData,
 }: {
   section: PageSection
   schema: PageSchema
   recordId?: string
   viewTrigger?: number
   onDataChange: (sectionId: number, data: unknown) => void
+  sharedData?: Record<string, unknown>
 }) {
   const { child_display_modes } = APP_CONSTANTS
 
@@ -385,6 +421,7 @@ function SectionRenderer({
           schema={schema}
           recordId={recordId}
           onDataChange={data => onDataChange(section.id, data)}
+          sharedData={sharedData}
         />
       )
 

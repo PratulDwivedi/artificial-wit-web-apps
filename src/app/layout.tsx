@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/lib/theme"
 
 export const metadata: Metadata = {
   title: "Artificial Wit - Apps",
-  description: "Artificial Wit Apps is a collection of AI-powered applications designed to enhance productivity and creativity. Explore our suite of tools, including chatbots, knowledge bases, agents, LLMs, prompts, and more. Experience the future of AI technology with Artificial Wit Apps.",
+  description: "Artificial Wit Apps is a collection of AI-powered applications",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
