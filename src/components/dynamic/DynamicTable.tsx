@@ -10,6 +10,7 @@ import type { PageSection, RpcEnvelope } from '@/lib/schema'
 
 interface Props {
   section: PageSection
+  onDataChange?: (rows: Row[]) => void
 }
 
 type Row = Record<string, unknown>
@@ -57,7 +58,7 @@ function CellValue({ control, row }: { control: PageSection['controls'][number];
   return <>{String(val)}</>
 }
 
-export function DynamicTable({ section }: Props) {
+export function DynamicTable({ section, onDataChange }: Props) {
   const { section_display_modes, control_display_modes, control_types } = APP_CONSTANTS
   const ACTION_TYPES = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow])
   const router   = useRouter()
@@ -82,8 +83,11 @@ export function DynamicTable({ section }: Props) {
       .then(({ data, error: err }) => {
         if (err) { setError(err); return }
         const env = data as unknown as RpcEnvelope<Row[]>
-        if (env?.is_success) setRows(env.data ?? [])
-        else setError(env?.message ?? 'Failed to load data')
+        if (env?.is_success) {
+          const loaded = env.data ?? []
+          setRows(loaded)
+          onDataChange?.(loaded)
+        } else setError(env?.message ?? 'Failed to load data')
       })
       .finally(() => setLoading(false))
   // Fetch once when section first expands

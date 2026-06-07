@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { AlertCircle, Eye, Loader2, Menu, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
@@ -23,15 +23,107 @@ function colSpan(width: unknown, defaultSpan = 16): number {
   return isNaN(n) ? defaultSpan : Math.min(16, Math.max(1, n))
 }
 
+/**
+ * Read a potentially-dotted path from an object.
+ * "data.default_value" on { data: { default_value: "x" } } → "x"
+ * Falls back to flat key lookup so plain binding names still work.
+ */
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  const dot = path.indexOf('.')
+  if (dot === -1) return obj[path]
+  const prefix = path.slice(0, dot)
+  const rest   = path.slice(dot + 1)
+  const child  = obj[prefix]
+  if (child !== null && typeof child === 'object') {
+    const found = getNestedValue(child as Record<string, unknown>, rest)
+    if (found !== undefined) return found
+  }
+  // flat fallback — handles formData stored with dotted key from handleChange
+  return obj[path]
+}
+
+/**
+ * Write a plain (no-prefix) nested value. Used for the sub-object after the
+ * top-level p_ key has already been applied.
+ * "b.c" on obj → obj["b"]["c"] = val
+ */
+function setNestedValue(obj: Record<string, unknown>, path: string, val: unknown): void {
+  const dot = path.indexOf('.')
+  if (dot === -1) { obj[path] = val; return }
+  const prefix = path.slice(0, dot)
+  const rest   = path.slice(dot + 1)
+  if (typeof obj[prefix] !== 'object' || obj[prefix] === null) obj[prefix] = {}
+  setNestedValue(obj[prefix] as Record<string, unknown>, rest, val)
+}
+
+/**
+ * Write a value into the RPC payload using dot notation.
+ * Only the first segment gets the p_ prefix; nested keys stay plain.
+ * "data.width" → payload["p_data"]["width"] = val  (not p_width)
+ * Multiple controls sharing the same prefix merge into the same object.
+ */
+function setPayloadValue(payload: Record<string, unknown>, bindingName: string, val: unknown): void {
+  const dot = bindingName.indexOf('.')
+  if (dot === -1) { payload[`p_${bindingName}`] = val; return }
+  const prefix     = bindingName.slice(0, dot)
+  const rest       = bindingName.slice(dot + 1)
+  const payloadKey = `p_${prefix}`
+  if (typeof payload[payloadKey] !== 'object' || payload[payloadKey] === null) payload[payloadKey] = {}
+  setNestedValue(payload[payloadKey] as Record<string, unknown>, rest, val)
+}
+
+/**
+ * Build the unified RPC payload from all section data.
+ * - Form sections: emit p_<binding_name> for every control defined in the schema
+ *   (filters out extra server fields). Dotted binding names like "data.key" become
+ *   nested objects: p_data: { key: val }.
+ * - DataTable sections: emit p_<section.binding_name> as a Row[] array.
+ * - Report/card sections are display-only and contribute nothing.
+ */
+function buildPayload(
+  schema: PageSchema,
+  sectionData: Map<number, unknown>,
+  recordId: string | undefined,
+  childDisplayModes: typeof APP_CONSTANTS.child_display_modes,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+
+  for (const section of schema.sections ?? []) {
+    const data = sectionData.get(section.id)
+
+    if (section.child_display_mode_id === childDisplayModes.form) {
+      const formData = (data ?? {}) as Record<string, unknown>
+      for (const control of section.controls ?? []) {
+        const val = getNestedValue(formData, control.binding_name)
+        if (val !== undefined) setPayloadValue(payload, control.binding_name, val)
+      }
+    } else if (section.child_display_mode_id === childDisplayModes.dataTable) {
+      if (section.binding_name) {
+        payload[`p_${section.binding_name}`] = Array.isArray(data) ? data : []
+      }
+    }
+  }
+
+  // Inject p_id from the URL when editing, if no schema control already emitted it
+  if (recordId && !('p_id' in payload)) {
+    payload['p_id'] = parseInt(recordId, 10)
+  }
+
+  return payload
+}
+
 export function DynamicPage({ routeName }: Props) {
-  const [schema,      setSchema]      = useState<PageSchema | null>(null)
-  const [loading,     setLoading]     = useState(true)
-  const [error,       setError]       = useState<string | null>(null)
-  const [saveTrigger,  setSaveTrigger] = useState(0)
-  const [savingCount,  setSavingCount] = useState(0)
-  const [viewTrigger,  setViewTrigger] = useState(0)
-  const [deleting,     setDeleting]    = useState(false)
-  const [deleteMsg,    setDeleteMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+  const [schema,     setSchema]    = useState<PageSchema | null>(null)
+  const [loading,    setLoading]   = useState(true)
+  const [error,      setError]     = useState<string | null>(null)
+  const [isSaving,   setIsSaving]  = useState(false)
+  const [saveMsg,    setSaveMsg]   = useState<{ text: string; ok: boolean } | null>(null)
+  const [viewTrigger, setViewTrigger] = useState(0)
+  const [deleting,   setDeleting]  = useState(false)
+  const [deleteMsg,  setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  // Accumulates the latest data from each section (keyed by section.id)
+  const sectionDataRef = useRef(new Map<number, unknown>())
 
   const searchParams = useSearchParams()
   const recordId     = searchParams.get('id') ?? undefined
@@ -53,8 +145,33 @@ export function DynamicPage({ routeName }: Props) {
       .finally(() => setLoading(false))
   }, [routeName])
 
-  const handleSavingChange = (saving: boolean) =>
-    setSavingCount(n => Math.max(0, saving ? n + 1 : n - 1))
+  // Called by each section whenever its data changes
+  const handleSectionData = useCallback((sectionId: number, data: unknown) => {
+    sectionDataRef.current.set(sectionId, data)
+  }, [])
+
+  // Single page-level save — builds payload from schema controls across all sections
+  const handleSave = useCallback(async () => {
+    if (!schema?.binding_name_post) return
+    setIsSaving(true); setSaveMsg(null)
+    try {
+      const payload = buildPayload(
+        schema,
+        sectionDataRef.current,
+        recordId,
+        APP_CONSTANTS.child_display_modes,
+      )
+      const { data, error } = await HttpHelper.rpc(schema.binding_name_post, payload)
+      if (error) throw new Error(error)
+      const env = data as unknown as RpcEnvelope
+      if (!env?.is_success) throw new Error(env?.message ?? 'Save failed')
+      setSaveMsg({ text: env.message ?? 'Saved successfully', ok: true })
+    } catch (e) {
+      setSaveMsg({ text: e instanceof Error ? e.message : 'Save failed', ok: false })
+    } finally {
+      setIsSaving(false)
+    }
+  }, [schema, recordId])
 
   const handleDelete = useCallback(async (bindingName: string) => {
     if (!recordId) return
@@ -94,7 +211,6 @@ export function DynamicPage({ routeName }: Props) {
   const showSave   = !!schema.binding_name_post
   const showView   = !!schema.binding_name_get && !schema.binding_name_post
   const showDelete = isEditing && !!schema.binding_name_delete
-  const isSaving   = savingCount > 0
   const Icon       = resolveIcon(schema.data?.item_icon)
 
   const sections = [...(schema.sections ?? [])]
@@ -133,7 +249,7 @@ export function DynamicPage({ routeName }: Props) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 ml-4">
-          {/* Edit mode toggle — only for users with is_edit_mode permission */}
+          {/* Edit mode toggle — only for users with show_editor permission */}
           {canEditMode && <button type="button"
             onClick={() => setEditMode(!editMode)}
             className="p-1.5 rounded-lg border transition"
@@ -177,10 +293,10 @@ export function DynamicPage({ routeName }: Props) {
             </button>
           )}
 
-          {/* Save / Update — driven by binding_name_post */}
+          {/* Save / Update — single page-level submission */}
           {showSave && (
             <button type="button" disabled={isSaving || deleting}
-              onClick={() => setSaveTrigger(n => n + 1)}
+              onClick={handleSave}
               className="flex items-center gap-1.5 px-4 py-2 btn-primary rounded-xl text-[13px] font-semibold transition disabled:opacity-60">
               {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               {isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
@@ -200,6 +316,16 @@ export function DynamicPage({ routeName }: Props) {
           )}
         </div>
       </div>
+
+      {/* Save feedback banner */}
+      {saveMsg && (
+        <div className="shrink-0 px-6 py-2.5 text-[12px] border-b"
+          style={saveMsg.ok
+            ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
+            : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
+          {saveMsg.text}
+        </div>
+      )}
 
       {/* Delete feedback banner */}
       {deleteMsg && (
@@ -223,9 +349,8 @@ export function DynamicPage({ routeName }: Props) {
                 section={section}
                 schema={schema}
                 recordId={recordId}
-                saveTrigger={showSave ? saveTrigger : undefined}
                 viewTrigger={showView ? viewTrigger : undefined}
-                onSavingChange={handleSavingChange}
+                onDataChange={handleSectionData}
               />
             </div>
           ))}
@@ -241,16 +366,14 @@ function SectionRenderer({
   section,
   schema,
   recordId,
-  saveTrigger,
   viewTrigger,
-  onSavingChange,
+  onDataChange,
 }: {
   section: PageSection
   schema: PageSchema
   recordId?: string
-  saveTrigger?: number
   viewTrigger?: number
-  onSavingChange?: (saving: boolean) => void
+  onDataChange: (sectionId: number, data: unknown) => void
 }) {
   const { child_display_modes } = APP_CONSTANTS
 
@@ -261,22 +384,29 @@ function SectionRenderer({
           section={section}
           schema={schema}
           recordId={recordId}
-          saveTrigger={saveTrigger}
-          onSavingChange={onSavingChange}
+          onDataChange={data => onDataChange(section.id, data)}
         />
       )
 
     case child_display_modes.dataTableReport:
     case child_display_modes.dataTableReportAdvance:
-      // Report pages fetch from the page-level binding_name_get
       if (schema.binding_name_get) {
         return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} />
       }
-      // Fall through to DynamicTable if no page-level binding (inline table with section binding)
-      return <DynamicTable section={section} />
+      return (
+        <DynamicTable
+          section={section}
+          onDataChange={rows => onDataChange(section.id, rows)}
+        />
+      )
 
     case child_display_modes.dataTable:
-      return <DynamicTable section={section} />
+      return (
+        <DynamicTable
+          section={section}
+          onDataChange={rows => onDataChange(section.id, rows)}
+        />
+      )
 
     case child_display_modes.cardItem:
       return <DynamicCard section={section} />
