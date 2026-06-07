@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, FileText,
-  Sun, Moon, User, Settings, LogOut, Building2, Upload, Loader2, X, Save, Link, Menu,
+  Sun, Moon, User, Settings, LogOut, Building2, Upload, Loader2, X, Save, Link, Menu, Search,
 } from 'lucide-react'
 import { resolveIcon } from '@/lib/icons'
 import { useTheme, PRIMARY_COLORS } from '@/lib/theme'
@@ -15,6 +15,7 @@ import { useAppStore } from '@/lib/store'
 import { HttpHelper } from '@/lib/http'
 import { ProfilePage } from '@/components/profile/ProfilePage'
 import { SettingsPage } from '@/components/settings/SettingsPage'
+import { PageSearchModal } from './PageSearchModal'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -459,8 +460,9 @@ export function DynamicSidebar() {
   const pathname = usePathname()
   const activeRoute = pathname.slice(1)
 
-  const [pages,   setPages]   = useState<PageItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [pages,      setPages]      = useState<PageItem[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [showSearch, setShowSearch] = useState(false)
 
   const { sidebarOpen, setSidebarOpen } = useAppStore()
 
@@ -482,6 +484,8 @@ export function DynamicSidebar() {
 
   return (
     <>
+      {showSearch && <PageSearchModal pages={pages} onClose={() => setShowSearch(false)} />}
+
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
@@ -518,6 +522,25 @@ export function DynamicSidebar() {
           style={{ color: 'var(--c-t4)' }}
         >
           <X size={15} />
+        </button>
+      </div>
+
+      {/* Search trigger */}
+      <div className="px-2 py-1.5 shrink-0 border-b" style={{ borderColor: 'var(--c-border)' }}>
+        <button
+          type="button"
+          onClick={() => setShowSearch(true)}
+          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition text-left"
+          style={{ background: 'var(--c-hover)', color: 'var(--c-t4)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)'; e.currentTarget.style.color = 'var(--c-primary)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'var(--c-hover)';  e.currentTarget.style.color = 'var(--c-t4)' }}
+        >
+          <Search size={12} className="shrink-0" />
+          <span className="text-[11px] flex-1">Search…</span>
+          <kbd className="text-[9px] px-1.5 py-0.5 rounded border"
+            style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-panel)', color: 'var(--c-t5)' }}>
+            /
+          </kbd>
         </button>
       </div>
 
