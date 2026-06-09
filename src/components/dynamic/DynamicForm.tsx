@@ -35,6 +35,21 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return obj[path]
 }
 
+function setNestedValue(
+  obj: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): Record<string, unknown> {
+  const dot = path.indexOf('.')
+  if (dot === -1) return { ...obj, [path]: value }
+  const prefix = path.slice(0, dot)
+  const rest   = path.slice(dot + 1)
+  const child  = (obj[prefix] !== null && typeof obj[prefix] === 'object')
+    ? (obj[prefix] as Record<string, unknown>)
+    : {}
+  return { ...obj, [prefix]: setNestedValue(child, rest, value) }
+}
+
 export function DynamicForm({ section, schema, recordId, onDataChange, sharedData }: Props) {
   const { section_display_modes, control_display_modes } = APP_CONSTANTS
   const router      = useRouter()
@@ -85,7 +100,7 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
   }, [formData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = useCallback((name: string, value: unknown) => {
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData(prev => setNestedValue(prev, name, value))
   }, [])
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault() }

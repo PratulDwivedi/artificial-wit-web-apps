@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, X } from 'lucide-react'
+import { ChevronRight, ChevronDown, X, Search } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 
 interface TreeNode {
@@ -24,6 +24,22 @@ interface Props {
   multiple?: boolean
 }
 
+// ── Recursive filter ──────────────────────────────────────────────────────────
+
+function filterNodes(nodes: TreeNode[], query: string): TreeNode[] {
+  if (!query.trim()) return nodes
+  const q = query.toLowerCase()
+  return nodes
+    .map(node => {
+      const filteredChildren = filterNodes(node.children ?? [], q)
+      if (node.name.toLowerCase().includes(q) || filteredChildren.length > 0) {
+        return { ...node, children: filteredChildren }
+      }
+      return null
+    })
+    .filter(Boolean) as TreeNode[]
+}
+
 // ── Recursive tree node ───────────────────────────────────────────────────────
 
 function TreeItem({
@@ -31,16 +47,19 @@ function TreeItem({
   selectedIds,
   onSelect,
   multiple,
+  forceExpand = false,
   depth = 0,
 }: {
   node: TreeNode
   selectedIds: string[]
   onSelect: (node: TreeNode) => void
   multiple: boolean
+  forceExpand?: boolean
   depth?: number
 }) {
   const hasChildren = (node.children?.length ?? 0) > 0
   const [expanded, setExpanded] = useState(false)
+  const isExpanded = forceExpand || expanded
   const isSelected = selectedIds.includes(String(node.id))
 
   return (
@@ -65,10 +84,10 @@ function TreeItem({
         <button
           type="button"
           className="shrink-0 w-4 h-4 flex items-center justify-center rounded transition hover:bg-[var(--c-border-strong)]"
-          onClick={e => { e.stopPropagation(); if (hasChildren) setExpanded(v => !v) }}
+          onClick={e => { e.stopPropagation(); if (hasChildren && !forceExpand) setExpanded(v => !v) }}
         >
           {hasChildren
-            ? expanded
+            ? isExpanded
               ? <ChevronDown  size={11} style={{ color: 'var(--c-t4)' }} />
               : <ChevronRight size={11} style={{ color: 'var(--c-t4)' }} />
             : null}
@@ -93,7 +112,7 @@ function TreeItem({
         <span className="text-[13px] flex-1 truncate">{node.name}</span>
       </div>
 
-      {expanded && hasChildren && (
+      {isExpanded && hasChildren && (
         <div>
           {node.children!.map(child => (
             <TreeItem
@@ -102,6 +121,7 @@ function TreeItem({
               selectedIds={selectedIds}
               onSelect={onSelect}
               multiple={multiple}
+              forceExpand={forceExpand}
               depth={depth + 1}
             />
           ))}
@@ -126,6 +146,7 @@ export function TreeViewSelect({
   const [nodes,   setNodes]   = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(false)
   const [open,    setOpen]    = useState(false)
+  const [search,  setSearch]  = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const panelRef     = useRef<HTMLDivElement>(null)
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 })
@@ -206,6 +227,7 @@ export function TreeViewSelect({
             const r = containerRef.current.getBoundingClientRect()
             setDropPos({ top: r.bottom + 4, left: r.left, width: r.width })
           }
+          if (open) setSearch('')
           setOpen(v => !v)
         }}
         className="w-full min-h-[38px] flex items-start justify-between gap-2 rounded-xl px-3 py-2 text-[13px] border transition
@@ -266,21 +288,47 @@ export function TreeViewSelect({
             borderColor: 'var(--c-border)',
           }}
         >
-          <div role="listbox" className="overflow-y-auto max-h-[260px] p-1">
-            {nodes.length === 0 ? (
-              <p className="px-3 py-3 text-[12px] text-center" style={{ color: 'var(--c-t5)' }}>
-                No options found
-              </p>
-            ) : nodes.map(node => (
-              <TreeItem
-                key={String(node.id)}
-                node={node}
-                selectedIds={selectedIds}
-                onSelect={handleSelect}
-                multiple={multiple}
-              />
-            ))}
+          {/* Search box */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: 'var(--c-border)' }}>
+            <Search size={12} style={{ color: 'var(--c-t4)', flexShrink: 0 }} />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search…"
+              className="flex-1 text-[12px] bg-transparent outline-none"
+              style={{ color: 'var(--c-t1)' }}
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')}
+                className="opacity-50 hover:opacity-100 transition">
+                <X size={10} style={{ color: 'var(--c-t4)' }} />
+              </button>
+            )}
           </div>
+          {/* Tree list */}
+          {(() => {
+            const visible = filterNodes(nodes, search)
+            const isSearching = search.trim().length > 0
+            return (
+              <div role="listbox" className="overflow-y-auto max-h-[240px] p-1">
+                {visible.length === 0 ? (
+                  <p className="px-3 py-3 text-[12px] text-center" style={{ color: 'var(--c-t5)' }}>
+                    {nodes.length === 0 ? 'No options found' : 'No results'}
+                  </p>
+                ) : visible.map(node => (
+                  <TreeItem
+                    key={String(node.id)}
+                    node={node}
+                    selectedIds={selectedIds}
+                    onSelect={handleSelect}
+                    multiple={multiple}
+                    forceExpand={isSearching}
+                  />
+                ))}
+              </div>
+            )
+          })()}
         </div>,
         document.body
       )}

@@ -53,7 +53,7 @@ export function DynamicTable({ section, schema, recordId, onDataChange }: Props)
   const dataCols      = allControls.filter(c =>
     c.control_type_id !== control_types.addTableRow &&
     c.control_type_id !== control_types.deleteTableRow &&
-    c.display_mode_id !== control_display_modes.none_hidden
+    (c.display_mode_id !== control_display_modes.none_hidden || editMode)
   )
 
   const isEditable    = !!schema
@@ -168,23 +168,32 @@ export function DynamicTable({ section, schema, recordId, onDataChange }: Props)
             <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-hover)' }}>
               <th className="px-3 py-2 text-center font-semibold select-none"
                 style={{ color: 'var(--c-t4)', width: 44 }}>#</th>
-              {dataCols.map(col => (
-                <th key={col.id}
-                  className="px-3 py-2 text-left font-semibold whitespace-nowrap"
-                  style={{ color: 'var(--c-t3)' }}>
-                  <span className="inline-flex items-center gap-1">
-                    {col.name}
-                    {editMode && (
-                      <button type="button"
-                        onClick={() => router.push(`/page_section_control?id=${col.id}`)}
-                        className="p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
-                        title="Edit control">
-                        <Pencil size={10} />
-                      </button>
-                    )}
-                  </span>
-                </th>
-              ))}
+              {dataCols.map(col => {
+                const isHidden = col.display_mode_id === control_display_modes.none_hidden
+                return (
+                  <th key={col.id}
+                    className="px-3 py-2 text-left font-semibold whitespace-nowrap"
+                    style={{ color: 'var(--c-t3)' }}>
+                    <span className="inline-flex items-center gap-1">
+                      {col.name}
+                      {isHidden && (
+                        <span className="text-[9px] font-normal px-1 py-0.5 rounded"
+                          style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
+                          Hidden
+                        </span>
+                      )}
+                      {editMode && (
+                        <button type="button"
+                          onClick={() => router.push(`/page_section_control?id=${col.id}`)}
+                          className="p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
+                          title="Edit control">
+                          <Pencil size={10} />
+                        </button>
+                      )}
+                    </span>
+                  </th>
+                )
+              })}
               {isEditable && deleteRowCtrl && (
                 <th className="px-3 py-2 text-center font-semibold"
                   style={{ color: 'var(--c-t4)', width: 44 }}>

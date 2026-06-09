@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Upload, GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Upload, GripVertical, Pencil, Plus, Trash2, Eye } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   Chart as ChartJS,
@@ -18,6 +18,7 @@ import type { DropdownOption } from '@/lib/schema'
 import { SearchableDropdown } from './SearchableDropdown'
 import { TreeViewSelect } from './TreeViewSelect'
 import { FieldConditionTable } from '@/components/common/FieldConditionTable'
+import { FilePreview } from '@/components/common/FilePreview'
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -59,14 +60,22 @@ const INPUT_STYLE: React.CSSProperties = {
 // ── Chart data helper ─────────────────────────────────────────────────────────
 
 const CHART_COLORS = [
-  '#6366f1','#8b5cf6','#ec4899','#f59e0b',
-  '#10b981','#3b82f6','#ef4444','#14b8a6',
-  '#f97316','#06b6d4','#84cc16','#a855f7',
+  '#4f46e5','#7c3aed','#2563eb','#0891b2',
+  '#059669','#65a30d','#ca8a04','#ea580c',
+  '#dc2626','#db2777','#6366f1','#0d9488',
+  '#0284c7','#9333ea',
 ]
 
-function toChartData(raw: unknown) {
+function getPrimaryColor(): string {
+  if (typeof window === 'undefined') return '#4f46e5'
+  return getComputedStyle(document.documentElement).getPropertyValue('--c-primary').trim() || '#4f46e5'
+}
+
+function toChartData(raw: unknown, perSliceColors = false) {
   const rows = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
-  if (rows.length === 0) return { labels: [], datasets: [{ data: [], backgroundColor: CHART_COLORS, borderRadius: 6, borderWidth: 0 }], isMulti: false }
+  const primary = getPrimaryColor()
+  const singleBg = perSliceColors ? CHART_COLORS : primary
+  if (rows.length === 0) return { labels: [], datasets: [{ data: [], backgroundColor: singleBg, borderRadius: 6, borderWidth: 0 }], isMulti: false }
 
   const first = rows[0]
 
@@ -80,7 +89,7 @@ function toChartData(raw: unknown) {
   // Numeric keys (excluding the label key)
   const numKeys = Object.keys(first).filter(k => k !== labelKey && typeof first[k] === 'number')
 
-  // Single-series: explicit 'value'/'count' key, or only one numeric field
+  // Single-series: bars use primary color; pie/doughnut use per-slice CHART_COLORS
   if ('value' in first || 'count' in first || numKeys.length <= 1) {
     const vKey = 'value' in first ? 'value' : 'count' in first ? 'count' : (numKeys[0] ?? 'value')
     return {
@@ -88,14 +97,14 @@ function toChartData(raw: unknown) {
       isMulti: false,
       datasets: [{
         data: rows.map(r => Number(r[vKey] ?? 0)),
-        backgroundColor: CHART_COLORS,
+        backgroundColor: singleBg,
         borderRadius: 6,
         borderWidth: 0,
       }],
     }
   }
 
-  // Multi-series: each numeric field becomes its own dataset
+  // Multi-series: each numeric field becomes its own dataset from the palette
   return {
     labels,
     isMulti: true,
@@ -605,31 +614,45 @@ export function DynamicControl({
         const src = filename
           ? `/api/profile-pics/download?filename=${encodeURIComponent(filename)}`
           : null
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const [previewing, setPreviewing] = useState(false)
         return (
-          <div className="flex items-center gap-3">
-            {control_type_id === control_types.image && src && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={src} alt={name} className="h-12 w-12 rounded-xl object-cover border"
-                style={{ borderColor: 'var(--c-border-strong)' }} />
+          <>
+            <div className="flex items-center gap-3">
+              {control_type_id === control_types.image && src && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt={name} className="h-12 w-12 rounded-xl object-cover border"
+                  style={{ borderColor: 'var(--c-border-strong)' }} />
+              )}
+              {control_type_id === control_types.fileUpload && filename && (
+                <span className="text-[12px] truncate max-w-[160px]" style={{ color: 'var(--c-t3)' }}>
+                  {filename.split('/').pop()}
+                </span>
+              )}
+              <input ref={fileRef} type="file"
+                accept={control_type_id === control_types.image ? 'image/*' : undefined}
+                className="hidden" onChange={handleFileUpload} />
+              {src && (
+                <button type="button" onClick={() => setPreviewing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition"
+                  style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
+                  <Eye size={11} /> Preview
+                </button>
+              )}
+              {!isDisabled && (
+                <button type="button" disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition disabled:opacity-50"
+                  style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
+                  {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                  {uploading ? 'Uploading…' : filename ? 'Replace' : 'Upload'}
+                </button>
+              )}
+            </div>
+            {previewing && src && filename && (
+              <FilePreview url={src} filename={filename} onClose={() => setPreviewing(false)} />
             )}
-            {control_type_id === control_types.fileUpload && filename && (
-              <span className="text-[12px] truncate max-w-[160px]" style={{ color: 'var(--c-t3)' }}>
-                {filename.split('/').pop()}
-              </span>
-            )}
-            <input ref={fileRef} type="file"
-              accept={control_type_id === control_types.image ? 'image/*' : undefined}
-              className="hidden" onChange={handleFileUpload} />
-            {!isDisabled && (
-              <button type="button" disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition disabled:opacity-50"
-                style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}>
-                {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
-                {uploading ? 'Uploading…' : filename ? 'Replace' : 'Upload'}
-              </button>
-            )}
-          </div>
+          </>
         )
       }
 
@@ -776,9 +799,9 @@ export function DynamicControl({
                 ...chartData.datasets[0],
                 tension: 0.4,
                 fill: true,
-                borderColor: '#6366f1',
-                backgroundColor: 'rgba(99,102,241,0.08)',
-                pointBackgroundColor: '#6366f1',
+                borderColor: CHART_COLORS[0],
+                backgroundColor: CHART_COLORS[0] + '14',
+                pointBackgroundColor: CHART_COLORS[0],
                 pointRadius: 3,
               }],
             }
@@ -790,7 +813,7 @@ export function DynamicControl({
       }
 
       case control_types.pieChart: {
-        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value, true)
         const PIE_OPTIONS = {
           responsive: true,
           maintainAspectRatio: true,

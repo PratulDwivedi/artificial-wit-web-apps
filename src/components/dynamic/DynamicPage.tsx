@@ -285,20 +285,7 @@ export function DynamicPage({ routeName }: Props) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 ml-4">
-          {/* Edit mode toggle — only for users with show_editor permission */}
-          {canEditMode && <button type="button"
-            onClick={() => setEditMode(!editMode)}
-            className="p-1.5 rounded-lg border transition"
-            title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
-            style={{
-              borderColor: editMode ? 'var(--c-primary)' : 'var(--c-border)',
-              background:  editMode ? 'color-mix(in srgb, var(--c-primary) 12%, transparent)' : 'transparent',
-              color:       editMode ? 'var(--c-primary)' : 'var(--c-t4)',
-            }}>
-            <Pencil size={14} />
-          </button>}
-
-          {/* Page-level edit / add-section — only in edit mode */}
+          {/* Page-level edit / add-section — only in edit mode, shown before the toggle */}
           {editMode && (
             <>
               <button type="button"
@@ -315,6 +302,19 @@ export function DynamicPage({ routeName }: Props) {
               </button>
             </>
           )}
+
+          {/* Edit mode toggle — only for users with show_editor permission */}
+          {canEditMode && <button type="button"
+            onClick={() => setEditMode(!editMode)}
+            className="p-1.5 rounded-lg border transition"
+            title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+            style={{
+              borderColor: editMode ? 'var(--c-primary)' : 'var(--c-border)',
+              background:  editMode ? 'color-mix(in srgb, var(--c-primary) 12%, transparent)' : 'transparent',
+              color:       editMode ? 'var(--c-primary)' : 'var(--c-t4)',
+            }}>
+            <Pencil size={14} />
+          </button>}
 
           {/* Delete — only when editing a record that has a delete binding */}
           {showDelete && (

@@ -165,7 +165,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   const [pageSize,    setPageSize]    = useState(25)
 
   const allControls      = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
-  const columns          = allControls.filter(c => c.display_mode_id !== control_display_modes.none_hidden)
+  const columns          = allControls.filter(c =>
+    c.display_mode_id !== control_display_modes.none_hidden || editMode
+  )
   const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow])
 
   // hyperlinkRow (33) controls → toolbar bulk-action buttons, never table columns
@@ -193,7 +195,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   }
 
   function colWidth(col: typeof columns[number]): number {
-    return (col.data?.width as number || 0) || 4
+    const explicit = col.data?.width as number | undefined
+    if (explicit) return explicit
+    // Action buttons and hidden columns get a compact default; data columns get 4
+    const isAction = ACTION_TYPES.has(col.control_type_id)
+    const isHidden = col.display_mode_id === control_display_modes.none_hidden
+    return (isAction || isHidden) ? 1 : 4
   }
   const totalColWidth = tableCols.reduce((sum, col) => sum + colWidth(col), 0)
 
@@ -437,7 +444,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                   )
                 })()}
                 {tableCols.map(col => {
-                  const isAction = ACTION_TYPES.has(col.control_type_id)
+                  const isAction  = ACTION_TYPES.has(col.control_type_id)
+                  const isHidden  = col.display_mode_id === control_display_modes.none_hidden
                   return (
                     <th key={col.id}
                       className="px-3 py-1 text-left font-semibold whitespace-nowrap"
@@ -448,6 +456,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                             onClick={() => handleSort(col.binding_name)}
                             className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
                             {col.name}
+                            {isHidden && (
+                              <span className="text-[9px] font-normal px-1 py-0.5 rounded"
+                                style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
+                                Hidden
+                              </span>
+                            )}
                             <SortIcon col={col.binding_name} sortKey={sortKey} sortDir={sortDir} />
                           </button>
                         )}
