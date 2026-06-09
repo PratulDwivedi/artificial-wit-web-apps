@@ -19,6 +19,7 @@ import { SearchableDropdown } from './SearchableDropdown'
 import { TreeViewSelect } from './TreeViewSelect'
 import { FieldConditionTable } from '@/components/common/FieldConditionTable'
 import { FilePreview } from '@/components/common/FilePreview'
+import { HtmlParser } from '@/components/common/HtmlParser'
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -716,10 +717,10 @@ export function DynamicControl({
       case control_types.htmlParser: {
         const html = (value as string) ?? ''
         return (
-          <div
-            className="rounded-xl border px-3 py-2 text-[13px] prose prose-sm max-w-none"
+          <HtmlParser
+            html={html}
+            className="rounded-xl border px-3 py-2"
             style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t2)' }}
-            dangerouslySetInnerHTML={{ __html: html }} // eslint-disable-line react/no-danger
           />
         )
       }

@@ -4,14 +4,15 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   FileText, Loader2, Menu, Save, Eye,
-  ChevronDown, ChevronRight,
-  Search, X, Calendar,
+  ChevronDown, X,
+  Search, Calendar,
 } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { HttpHelper } from '@/lib/http'
 import { RichEditor } from '@/components/common/RichEditor'
 import { FieldConditionTable } from '@/components/common/FieldConditionTable'
 import type { ConditionEntry } from '@/components/common/FieldConditionTable'
+import { TreeViewSelect } from '@/components/dynamic/TreeViewSelect'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,6 @@ interface PageField  {
   control_type: string; control_type_id: number
   binding_list_route_name: string | null
 }
-interface PageNode { id: number; name: string; parent_id: number; display_order: number; children: PageNode[] }
 interface TemplateRecord {
   id: number; name: string
   template_type_id: number | null; page_id: number | null
@@ -105,109 +105,6 @@ function SearchableSelect({
   )
 }
 
-// ── PageTreeSelect ────────────────────────────────────────────────────────────
-
-type FlatNode = { id: number; name: string; path: string; indent: number; hasChildren: boolean }
-
-function flattenTree(nodes: PageNode[], ancestors: string[] = []): FlatNode[] {
-  const result: FlatNode[] = []
-  for (const n of [...nodes].sort((a, b) => a.display_order - b.display_order)) {
-    const hasChildren = n.children && n.children.length > 0
-    result.push({ id: n.id, name: n.name, path: [...ancestors, n.name].join(' › '), indent: ancestors.length, hasChildren })
-    if (hasChildren) result.push(...flattenTree(n.children, [...ancestors, n.name]))
-  }
-  return result
-}
-
-function PageTreeSelect({ pages, value, onChange }: {
-  pages: PageNode[]; value: number | null
-  onChange: (id: number | null, name: string | null) => void
-}) {
-  const [open, setOpen]     = useState(false)
-  const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-
-  const flat     = flattenTree(pages)
-  const selected = flat.find(f => f.id === value)
-  const filtered = search ? flat.filter(f =>
-    f.name.toLowerCase().includes(search.toLowerCase()) || f.path.toLowerCase().includes(search.toLowerCase())
-  ) : flat
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch('') }
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-
-  return (
-    <div ref={ref} className="relative">
-      <div onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border cursor-pointer text-[13px]"
-        style={{
-          background: 'var(--c-hover)',
-          borderColor: open ? 'var(--c-primary)' : 'var(--c-border-strong)',
-          color: selected ? 'var(--c-t1)' : 'var(--c-t4)',
-          boxShadow: open ? '0 0 0 3px var(--c-primary-light)' : undefined,
-        }}>
-        <span className="flex-1 truncate">{selected?.name ?? 'Select page…'}</span>
-        {selected && (
-          <button type="button" onMouseDown={e => { e.stopPropagation(); onChange(null, null) }}
-            className="shrink-0 hover:opacity-70" style={{ color: 'var(--c-t4)' }}>
-            <X size={12} />
-          </button>
-        )}
-        <ChevronDown size={13} className="shrink-0" style={{ color: 'var(--c-t4)' }} />
-      </div>
-
-      {open && (
-        <div className="absolute z-20 top-full mt-1 w-full rounded-xl border shadow-xl overflow-hidden"
-          style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
-          <div className="p-2 border-b" style={{ borderColor: 'var(--c-border)' }}>
-            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg" style={{ background: 'var(--c-hover)' }}>
-              <Search size={11} style={{ color: 'var(--c-t4)' }} />
-              <input autoFocus type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search pages…" className="flex-1 bg-transparent outline-none text-[12px]"
-                style={{ color: 'var(--c-t1)' }} />
-            </div>
-          </div>
-          <div className="overflow-y-auto" style={{ maxHeight: '250px' }}>
-            {filtered.map(f => {
-              const isGroup     = f.hasChildren && !search
-              const isSelectable = !isGroup
-              return (
-                <button key={f.id} type="button"
-                  disabled={isGroup}
-                  onClick={() => { if (isSelectable) { onChange(f.id, f.name); setOpen(false); setSearch('') } }}
-                  className="w-full py-1.5 text-left text-[12px] flex items-center gap-1 transition"
-                  style={{
-                    paddingLeft: search ? 12 : 12 + f.indent * 12,
-                    paddingRight: 12,
-                    background: f.id === value ? 'var(--c-active)' : undefined,
-                    color: isGroup ? 'var(--c-t4)' : (f.id === value ? 'var(--c-primary)' : 'var(--c-t2)'),
-                    fontWeight: isGroup ? 600 : 400,
-                    cursor: isGroup ? 'default' : 'pointer',
-                  }}
-                  onMouseEnter={e => { if (isSelectable) e.currentTarget.style.background = f.id !== value ? 'var(--c-hover)' : 'var(--c-active)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = f.id === value ? 'var(--c-active)' : '' }}>
-                  {isGroup && <ChevronRight size={10} className="shrink-0 mr-0.5" />}
-                  <span className="truncate flex-1">{f.name}</span>
-                  {search && f.indent > 0 && (
-                    <span className="ml-2 text-[10px] truncate shrink-0" style={{ color: 'var(--c-t5)' }}>
-                      {f.path.split(' › ').slice(0, -1).join(' › ')}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── TemplatePage ──────────────────────────────────────────────────────────────
 
 export function TemplatePage() {
@@ -225,9 +122,9 @@ export function TemplatePage() {
   const [languages,      setLanguages]      = useState<LookupItem[]>([])
   const [templateTypes,  setTemplateTypes]  = useState<LookupItem[]>([])
   const [orientations,   setOrientations]   = useState<LookupItem[]>([])
-  const [pages,          setPages]          = useState<PageNode[]>([])
   const [pageFields,     setPageFields]     = useState<PageField[]>([])
 
+  const [fieldSearch,    setFieldSearch]    = useState('')
   const [isSaving,       setIsSaving]       = useState(false)
   const [saveMsg,        setSaveMsg]        = useState<{ text: string; ok: boolean } | null>(null)
   const [activeEditorName, setActiveEditorName] = useState<string>('Header')
@@ -250,17 +147,13 @@ export function TemplatePage() {
     Promise.all([
       HttpHelper.rpc('fn_get_app_languages',    {}),
       HttpHelper.rpc('fn_get_template_types',   {}),
-      HttpHelper.rpc('fn_get_page_list',        {}),
       HttpHelper.rpc('fn_get_page_orientations', {}),
-    ]).then(([langRes, typeRes, pageRes, orientRes]) => {
+    ]).then(([langRes, typeRes, orientRes]) => {
       const langEnv = langRes.data as unknown as Env<LookupItem[]>
       if (langEnv?.is_success) setLanguages(langEnv.data ?? [])
 
       const typeEnv = typeRes.data as unknown as Env<LookupItem[]>
       if (typeEnv?.is_success) setTemplateTypes(typeEnv.data ?? [])
-
-      const pageEnv = pageRes.data as unknown as Env<PageNode[]>
-      if (pageEnv?.is_success) setPages(pageEnv.data ?? [])
 
       const orientEnv = orientRes.data as unknown as Env<LookupItem[]>
       if (orientEnv?.is_success) setOrientations(orientEnv.data ?? [])
@@ -290,7 +183,8 @@ export function TemplatePage() {
 
   // Load page fields when page changes
   useEffect(() => {
-    if (!pageId) { setPageFields([]); return }
+    if (!pageId) { setPageFields([]); setFieldSearch(''); return }
+    setFieldSearch('')
     setLoadingFields(true)
     HttpHelper.rpc('fn_get_page_controls', { p_page_id: pageId })
       .then(({ data }) => {
@@ -341,6 +235,42 @@ export function TemplatePage() {
     } finally { setIsSaving(false) }
   }, [templateName, templateTypeId, pageId, languageId, orientationId, isEnabled, headerHtml, bodyHtml, footerHtml, conditions, recordId])
 
+  const handlePrint = useCallback(() => {
+    const win = window.open('', '_blank', 'width=900,height=700')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${templateName || 'Template'}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; font-size: 13px; color: #111; }
+    .section-label { font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #999; margin-bottom: 10px; }
+    .header-section, .footer-section { padding: 24px 32px; background: #f9f9f9; }
+    .body-section { padding: 28px 32px; }
+    .divider { border: none; border-top: 1px solid #e5e7eb; }
+    @media print {
+      .no-print { display: none !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="padding:12px 24px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-size:13px;font-weight:600;color:#374151;">${templateName || 'Template'} — Preview</span>
+    <button onclick="window.print()" style="padding:6px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">Print</button>
+  </div>
+  ${headerHtml ? `<div class="header-section"><div class="section-label">Header</div>${headerHtml}</div><hr class="divider"/>` : ''}
+  ${bodyHtml   ? `<div class="body-section">${bodyHtml}</div>` : ''}
+  ${footerHtml ? `<hr class="divider"/><div class="footer-section"><div class="section-label">Footer</div>${footerHtml}</div>` : ''}
+</body>
+</html>`)
+    win.document.close()
+    win.focus()
+  }, [templateName, headerHtml, bodyHtml, footerHtml])
+
   function fieldIsDate(f: PageField) {
     return f.control_type_id === 4 || f.control_type?.toLowerCase().includes('date')
   }
@@ -373,6 +303,7 @@ export function TemplatePage() {
 
         <div className="flex items-center gap-2 shrink-0 ml-4">
           <button type="button"
+            onClick={handlePrint}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-semibold transition"
             style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)', background: 'var(--c-hover)' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)' }}
@@ -434,8 +365,11 @@ export function TemplatePage() {
                 <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--c-t4)' }}>
                   Page <span style={{ color: 'var(--c-primary)' }}>*</span>
                 </label>
-                <PageTreeSelect pages={pages} value={pageId}
-                  onChange={id => setPageId(id)} />
+                <TreeViewSelect
+                  value={pageId}
+                  onChange={v => setPageId(v == null ? null : Number(v))}
+                  binding_list_route_name="fn_get_page_list"
+                />
               </div>
 
               {/* Language */}
@@ -517,16 +451,32 @@ export function TemplatePage() {
           style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
           <div className="p-4 border-b shrink-0" style={{ borderColor: 'var(--c-border)' }}>
             <h3 className="text-[13px] font-semibold mb-1" style={{ color: 'var(--c-t1)' }}>Available Fields</h3>
-            <div className="flex items-center gap-1 mb-2">
+            <div className="flex items-center gap-1 mb-3">
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded"
                 style={{ background: 'var(--c-hover)', color: 'var(--c-t4)' }}>✕</span>
               <span className="text-[11px]" style={{ color: 'var(--c-t3)' }}>
                 Inserting to: <span className="font-semibold" style={{ color: 'var(--c-primary)' }}>{activeEditorName}</span>
               </span>
             </div>
-            <p className="text-[11px]" style={{ color: 'var(--c-t4)' }}>
-              Click on a field to insert it into the active editor.
-            </p>
+            {/* Search box */}
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border"
+              style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)' }}>
+              <Search size={11} style={{ color: 'var(--c-t4)', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={fieldSearch}
+                onChange={e => setFieldSearch(e.target.value)}
+                placeholder="Search fields…"
+                className="flex-1 bg-transparent outline-none text-[12px]"
+                style={{ color: 'var(--c-t1)' }}
+              />
+              {fieldSearch && (
+                <button type="button" onClick={() => setFieldSearch('')}
+                  className="opacity-50 hover:opacity-100 transition">
+                  <X size={10} style={{ color: 'var(--c-t4)' }} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">
@@ -543,10 +493,19 @@ export function TemplatePage() {
               <div className="py-10 text-center">
                 <p className="text-[12px]" style={{ color: 'var(--c-t5)' }}>No fields for this page</p>
               </div>
-            ) : (
+            ) : (() => {
+              const q = fieldSearch.toLowerCase()
+              const visible = fieldSearch
+                ? pageFields.filter(f => f.name.toLowerCase().includes(q) || f.binding_name.toLowerCase().includes(q))
+                : pageFields
+              return visible.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-[12px]" style={{ color: 'var(--c-t5)' }}>No matching fields</p>
+                </div>
+              ) : (
               <div className="space-y-1">
-                {pageFields.map(field => (
-                  <button key={field.binding_name} type="button"
+                {visible.map(field => (
+                  <button key={field.id} type="button"
                     onMouseDown={e => { e.preventDefault(); insertField(`{{${field.binding_name}}}`) }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition"
                     style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border)', color: 'var(--c-t2)' }}
@@ -565,10 +524,12 @@ export function TemplatePage() {
                   </button>
                 ))}
               </div>
-            )}
+              )
+            })()}
           </div>
         </aside>
       </div>
+
     </div>
   )
 }

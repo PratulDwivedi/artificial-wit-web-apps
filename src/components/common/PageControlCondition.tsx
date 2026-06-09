@@ -210,7 +210,7 @@ export function PageControlCondition({
   // No field selected yet
   if (!field) {
     return (
-      <input disabled placeholder="Select a field first…"
+      <input disabled value="" readOnly placeholder="Select a field first…"
         className="w-full rounded-lg px-2 py-1.5 text-[12px] border"
         style={{ ...baseStyle, color: 'var(--c-t4)', opacity: 0.6, cursor: 'not-allowed' }} />
     )
