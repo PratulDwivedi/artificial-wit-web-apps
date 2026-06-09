@@ -58,29 +58,62 @@ const INPUT_STYLE: React.CSSProperties = {
 
 // ── Chart data helper ─────────────────────────────────────────────────────────
 
-interface ChartRow { label: string; value: number; [k: string]: unknown }
+const CHART_COLORS = [
+  '#6366f1','#8b5cf6','#ec4899','#f59e0b',
+  '#10b981','#3b82f6','#ef4444','#14b8a6',
+  '#f97316','#06b6d4','#84cc16','#a855f7',
+]
 
 function toChartData(raw: unknown) {
-  const rows = Array.isArray(raw) ? (raw as ChartRow[]) : []
+  const rows = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
+  if (rows.length === 0) return { labels: [], datasets: [{ data: [], backgroundColor: CHART_COLORS, borderRadius: 6, borderWidth: 0 }], isMulti: false }
+
+  const first = rows[0]
+
+  // Find label key: prefer 'label' > 'name', then first string field
+  const labelKey = 'label' in first ? 'label'
+    : 'name' in first ? 'name'
+    : Object.keys(first).find(k => typeof first[k] === 'string') ?? ''
+
+  const labels = rows.map(r => String(r[labelKey] ?? ''))
+
+  // Numeric keys (excluding the label key)
+  const numKeys = Object.keys(first).filter(k => k !== labelKey && typeof first[k] === 'number')
+
+  // Single-series: explicit 'value'/'count' key, or only one numeric field
+  if ('value' in first || 'count' in first || numKeys.length <= 1) {
+    const vKey = 'value' in first ? 'value' : 'count' in first ? 'count' : (numKeys[0] ?? 'value')
+    return {
+      labels,
+      isMulti: false,
+      datasets: [{
+        data: rows.map(r => Number(r[vKey] ?? 0)),
+        backgroundColor: CHART_COLORS,
+        borderRadius: 6,
+        borderWidth: 0,
+      }],
+    }
+  }
+
+  // Multi-series: each numeric field becomes its own dataset
   return {
-    labels: rows.map(r => r.label ?? r.name ?? String(r.id ?? '')),
-    datasets: [{
-      data: rows.map(r => Number(r.value ?? r.count ?? 0)),
-      backgroundColor: [
-        '#6366f1','#8b5cf6','#ec4899','#f59e0b',
-        '#10b981','#3b82f6','#ef4444','#14b8a6',
-      ],
-      borderRadius: 6,
+    labels,
+    isMulti: true,
+    datasets: numKeys.map((key, i) => ({
+      label: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      data: rows.map(r => Number(r[key] ?? 0)),
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+      borderRadius: 4,
       borderWidth: 0,
-    }],
+    })),
   }
 }
 
-const AXIS_COLOR = 'rgba(107,114,128,0.7)'  // neutral for light + dark
+const AXIS_COLOR = 'rgba(107,114,128,0.7)'
 
-const CHART_OPTIONS = {
+const BASE_CHART_OPTIONS = {
   responsive: true,
-  maintainAspectRatio: true,
+  maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
     tooltip: { enabled: true },
@@ -97,6 +130,21 @@ const CHART_OPTIONS = {
       ticks: { color: AXIS_COLOR, font: { size: 11 } },
     },
   },
+}
+
+function chartOptions(isMulti: boolean) {
+  if (!isMulti) return BASE_CHART_OPTIONS
+  return {
+    ...BASE_CHART_OPTIONS,
+    plugins: {
+      ...BASE_CHART_OPTIONS.plugins,
+      legend: {
+        display: true,
+        position: 'top' as const,
+        labels: { color: AXIS_COLOR, font: { size: 11 }, padding: 10, boxWidth: 10, boxHeight: 10 },
+      },
+    },
+  }
 }
 
 // ── ReorderList (free-text items, no binding) ─────────────────────────────────
@@ -702,29 +750,42 @@ export function DynamicControl({
         const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
         return loadingOptions
           ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="w-full pt-1">
-              <Bar data={chartData} options={CHART_OPTIONS as never} />
+          : <div className="w-full pt-1" style={{ height: 220 }}>
+              <Bar data={chartData} options={chartOptions(chartData.isMulti) as never} />
             </div>
       }
 
       case control_types.lineChart: {
         const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
-        const lineData = {
-          ...chartData,
-          datasets: [{
-            ...chartData.datasets[0],
-            tension: 0.4,
-            fill: true,
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99,102,241,0.08)',
-            pointBackgroundColor: '#6366f1',
-            pointRadius: 3,
-          }],
-        }
+        const lineData = chartData.isMulti
+          ? {
+              ...chartData,
+              datasets: chartData.datasets.map((ds, i) => ({
+                ...ds,
+                tension: 0.4,
+                fill: false,
+                borderColor: CHART_COLORS[i % CHART_COLORS.length],
+                backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '22',
+                pointBackgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                pointRadius: 3,
+              })),
+            }
+          : {
+              ...chartData,
+              datasets: [{
+                ...chartData.datasets[0],
+                tension: 0.4,
+                fill: true,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99,102,241,0.08)',
+                pointBackgroundColor: '#6366f1',
+                pointRadius: 3,
+              }],
+            }
         return loadingOptions
           ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
           : <div className="w-full pt-1">
-              <Line data={lineData} options={CHART_OPTIONS as never} />
+              <Line data={lineData} options={chartOptions(chartData.isMulti) as never} />
             </div>
       }
 
