@@ -13,6 +13,7 @@ import { RichEditor } from '@/components/common/RichEditor'
 import { FieldConditionTable } from '@/components/common/FieldConditionTable'
 import type { ConditionEntry } from '@/components/common/FieldConditionTable'
 import { TreeViewSelect } from '@/components/dynamic/TreeViewSelect'
+import { NotificationBadge } from '@/components/common/NotificationBadge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -315,6 +316,7 @@ export function TemplatePage() {
             {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
             {isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
           </button>
+          <NotificationBadge />
         </div>
       </div>
 

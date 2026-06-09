@@ -12,6 +12,7 @@ import { DynamicForm } from './DynamicForm'
 import { DynamicTable } from './DynamicTable'
 import { DynamicReportTable } from './DynamicReportTable'
 import { DynamicCard } from './DynamicCard'
+import { NotificationBadge } from '@/components/common/NotificationBadge'
 
 interface Props {
   routeName: string
@@ -350,6 +351,8 @@ export function DynamicPage({ routeName }: Props) {
               <Eye size={13} /> View
             </button>
           )}
+
+          <NotificationBadge />
         </div>
       </div>
 
