@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
 import {
   User, Lock, Loader2,
-  RefreshCw, Upload, X, Save, ChevronDown, Search,
+  RefreshCw, Upload, Save, ChevronDown, Search,
 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 import { useAppStore } from '@/lib/store'
+import { ModalShell } from '@/components/common/ModalShell'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -454,70 +455,37 @@ export function ProfilePage({ onClose }: { onClose?: () => void }) {
   }
 
   // ── Modal layout ─────────────────────────────────────────────────────────────
-  return (
-    <div className="relative rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col border h-[88vh]"
-      style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
-
-      {/* Frozen header */}
-      <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b shrink-0"
-        style={{ borderColor: 'var(--c-border)', background: 'var(--c-topbar)', borderRadius: '1rem 1rem 0 0' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--c-primary-light)' }}>
-            <User size={16} style={{ color: 'var(--c-primary)' }} />
-          </div>
-          <div>
-            <h2 className="text-[15px] font-semibold" style={{ color: 'var(--c-t1)' }}>Profile</h2>
-            <p className="text-[12px] mt-0.5" style={{ color: 'var(--c-t4)' }}>
-              Manage your personal preferences and contact details.
-            </p>
-          </div>
-        </div>
-        <button onClick={onClose} className="p-1 rounded-lg transition hover:bg-[var(--c-hover)]"
-          style={{ color: 'var(--c-t4)' }}>
-          <X size={16} />
-        </button>
-      </div>
-
-      {/* Frozen tabs */}
-      <div className="flex shrink-0 border-b" style={{ background: 'var(--c-topbar)', borderColor: 'var(--c-border)' }}>
-        {TABS.map(t => {
-          const isActive = tab === t.id
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className="relative px-5 py-3 text-[13px] font-medium transition"
-              style={{ color: isActive ? 'var(--c-primary)' : 'var(--c-t4)' }}>
-              {t.label}
-              {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t"
-                  style={{ background: 'var(--c-primary)' }} />
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {tabContent}
-      </div>
-
-      {/* Frozen footer */}
-      <div className="flex gap-3 px-6 py-4 border-t shrink-0"
-        style={{ borderColor: 'var(--c-border)', background: 'var(--c-topbar)', borderRadius: '0 0 1rem 1rem' }}>
-        <button type="button" onClick={onClose}
-          className="flex-1 text-[13px] font-medium py-2.5 rounded-xl border transition hover:bg-[var(--c-hover)]"
-          style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)' }}>
-          Cancel
-        </button>
-        {showSave && (
-          <button type="button" onClick={handleFooterSave} disabled={footerSaving}
-            className="flex-1 btn-primary disabled:opacity-60 text-[13px] font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-            {footerSaving && <Loader2 size={14} className="animate-spin" />}
-            {saveLabel}
+  const tabBar = (
+    <>
+      {TABS.map(t => {
+        const isActive = tab === t.id
+        return (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className="relative px-5 py-3 text-[13px] font-medium transition"
+            style={{ color: isActive ? 'var(--c-primary)' : 'var(--c-t4)' }}>
+            {t.label}
+            {isActive && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t"
+                style={{ background: 'var(--c-primary)' }} />
+            )}
           </button>
-        )}
-      </div>
-    </div>
+        )
+      })}
+    </>
+  )
+
+  return (
+    <ModalShell
+      icon={<User size={16} style={{ color: 'var(--c-primary)' }} />}
+      title="Profile"
+      subtitle="Manage your personal preferences and contact details."
+      onClose={onClose}
+      tabs={tabBar}
+      onSave={showSave ? handleFooterSave : undefined}
+      saveLabel={saveLabel}
+      saving={footerSaving}
+    >
+      {tabContent}
+    </ModalShell>
   )
 }

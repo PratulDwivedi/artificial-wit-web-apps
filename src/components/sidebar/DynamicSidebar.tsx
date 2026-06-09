@@ -7,13 +7,14 @@ import { useRouter, usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, FileText,
-  Sun, Moon, User, Settings, LogOut, Building2, Upload, Loader2, X, Save, Link, Menu, Search,
+  Sun, Moon, User, Settings, LogOut, Loader2, X, Link, Search,
 } from 'lucide-react'
 import { resolveIcon } from '@/lib/icons'
 import { useTheme, PRIMARY_COLORS } from '@/lib/theme'
 import { useAppStore } from '@/lib/store'
 import { HttpHelper } from '@/lib/http'
 import { ProfilePage } from '@/components/profile/ProfilePage'
+import { TenantPage } from '@/components/profile/TenantPage'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { PageSearchModal } from './PageSearchModal'
 
@@ -157,7 +158,7 @@ function QuickLinkItem({ item, isActive, onNavigate }: {
   )
 }
 
-// ── TenantEditPopup ────────────────────────────────────────────────────────────
+// ── TenantLogo ─────────────────────────────────────────────────────────────────
 
 function logoSrc(url: string | null): string | null {
   if (!url) return null
@@ -165,141 +166,9 @@ function logoSrc(url: string | null): string | null {
   return `/api/profile-pics/download?filename=${encodeURIComponent(url)}`
 }
 
-function TenantEditPopup({ onClose }: { onClose: () => void }) {
-  const { tenantName, tenantLogoUrl, setTenantName, setTenantLogoUrl } = useAppStore()
-  const [name,      setName]      = useState(tenantName ?? '')
-  const [logoUrl,   setLogoUrl]   = useState(tenantLogoUrl ?? '')
-  const [uploading, setUploading] = useState(false)
-  const [saving,    setSaving]    = useState(false)
-  const [msg,       setMsg]       = useState<{ text: string; ok: boolean } | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true); setMsg(null)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res  = await fetch('/api/profile-pics/upload', { method: 'POST', body: form })
-      const json = await res.json() as { success: boolean; url?: string; error?: string; detail?: string }
-      if (!json.success) throw new Error([json.error, json.detail].filter(Boolean).join(' — '))
-      setLogoUrl(json.url ?? '')
-    } catch (err) {
-      setMsg({ text: err instanceof Error ? err.message : 'Upload failed', ok: false })
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
-  const handleSave = async () => {
-    setSaving(true); setMsg(null)
-    try {
-      const { data, error } = await HttpHelper.rpc('fn_update_tenant', {
-        p_name: name,
-        p_data: { logo_url: logoUrl },
-      })
-      if (error) throw error
-      const env = data as { is_success: boolean; message: string }
-      if (!env?.is_success) throw new Error(env?.message ?? 'Update failed')
-      setTenantName(name)
-      setTenantLogoUrl(logoUrl)
-      setMsg({ text: env.message ?? 'Saved', ok: true })
-      setTimeout(onClose, 900)
-    } catch (e: unknown) {
-      setMsg({ text: e instanceof Error ? e.message : 'Failed to save', ok: false })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="w-[340px] rounded-2xl border shadow-2xl overflow-hidden"
-        style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
-        <div className="flex items-center justify-between px-4 py-3 border-b"
-          style={{ borderColor: 'var(--c-border)', background: 'var(--c-topbar)' }}>
-          <div className="flex items-center gap-2">
-            <Building2 size={14} style={{ color: 'var(--c-t3)' }} />
-            <p className="text-[13px] font-semibold" style={{ color: 'var(--c-t1)' }}>Company Settings</p>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg transition hover:bg-[var(--c-hover)]"
-            style={{ color: 'var(--c-t4)' }}>
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="p-4 flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border flex items-center justify-center"
-              style={{ borderColor: 'var(--c-border)', background: 'var(--c-hover)' }}>
-              {logoUrl
-                ? <img src={logoSrc(logoUrl) ?? ''} alt="Logo" className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
-                : <Building2 size={22} style={{ color: 'var(--c-t5)' }} />}
-            </div>
-            <div className="flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5"
-                style={{ color: 'var(--c-t4)' }}>Company Logo</p>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-              <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition disabled:opacity-60"
-                style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}
-                onMouseEnter={e => { if (!uploading) e.currentTarget.style.background = 'var(--c-active)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'var(--c-hover)' }}>
-                {uploading ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
-                {uploading ? 'Uploading…' : 'Upload logo'}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
-              style={{ color: 'var(--c-t4)' }}>Company Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Company name"
-              className="w-full rounded-xl px-3 py-2 text-[13px] border focus:outline-none transition"
-              style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)', color: 'var(--c-t1)' }} />
-          </div>
-
-          {msg && (
-            <div className="text-[12px] rounded-lg px-3 py-2.5 border"
-              style={msg.ok
-                ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.3)' }
-                : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
-              {msg.text}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button onClick={onClose}
-              className="px-4 py-2 rounded-xl border text-[12px] font-medium transition"
-              style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t3)', background: 'var(--c-hover)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--c-hover)' }}>
-              Cancel
-            </button>
-            <button onClick={handleSave} disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 btn-primary rounded-xl text-[12px] font-semibold transition disabled:opacity-60">
-              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  )
-}
-
-// ── TenantLogo ─────────────────────────────────────────────────────────────────
-
 function TenantLogo() {
-  const [open, setOpen] = useState(false)
   const { tenantLogoUrl } = useAppStore()
+  const [open, setOpen] = useState(false)
 
   return (
     <>
@@ -310,7 +179,7 @@ function TenantLogo() {
           ? <img src={logoSrc(tenantLogoUrl) ?? ''} alt="Company" className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
           : <Image src="/logo.png" alt="AW" width={32} height={32} className="w-full h-full object-cover" priority />}
       </button>
-      {open && <TenantEditPopup onClose={() => setOpen(false)} />}
+      {open && <TenantModal onClose={() => setOpen(false)} />}
     </>
   )
 }
@@ -332,6 +201,16 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
       <SettingsPage onClose={onClose} />
+    </div>,
+    document.body
+  )
+}
+
+function TenantModal({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <TenantPage onClose={onClose} />
     </div>,
     document.body
   )
