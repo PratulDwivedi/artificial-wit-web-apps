@@ -129,3 +129,15 @@ body {
 @media (max-width: 767px) {
   .ctrl-grid > * { grid-column: 1 / -1; }
 }
+
+/* ── Card grid (used inside DynamicCard sections) ────────────────────────────
+   Mobile/tablet (<1024px) : always 2 cards per row (base — mobile first)
+   Desktop  (≥1024px) : all cards in one row via --card-cols CSS variable
+────────────────────────────────────────────────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 1024px) {
+  .card-grid { grid-template-columns: repeat(var(--card-cols, 2), 1fr); }
+}

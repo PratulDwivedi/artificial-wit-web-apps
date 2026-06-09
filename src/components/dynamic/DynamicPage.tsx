@@ -17,10 +17,13 @@ interface Props {
   routeName: string
 }
 
-/** Parse schema width to a number, clamped to 1-16, default 16. */
+/** Parse schema width (12-column convention) and scale to the 16-column dyn-grid. */
 function colSpan(width: unknown, defaultSpan = 16): number {
-  const n = parseInt(String(width ?? defaultSpan), 10)
-  return isNaN(n) ? defaultSpan : Math.min(16, Math.max(1, n))
+  const n = parseInt(String(width ?? ''), 10)
+  if (isNaN(n)) return defaultSpan
+  // Schema uses Bootstrap 12-col convention; scale proportionally to 16-col dyn-grid
+  // e.g. 12 → 16 (full), 6 → 8 (half), 3 → 4 (quarter)
+  return Math.min(16, Math.max(1, Math.round(n / 12 * 16)))
 }
 
 /**
@@ -427,10 +430,9 @@ function SectionRenderer({
 
     case child_display_modes.dataTableReport:
     case child_display_modes.dataTableReportAdvance:
-      if (schema.binding_name_get) {
+      if (section.binding_name || schema.binding_name_get) {
         return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} />
       }
-      // Fallback: read-only table via section.binding_name fetch
       return (
         <DynamicTable
           section={section}

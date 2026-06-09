@@ -58,45 +58,38 @@ function StatCard({ item, index, onNavigate }: {
   return (
     <div
       onClick={() => item.url && onNavigate?.(item.url)}
-      className={`rounded-2xl border p-4 flex flex-col gap-3 h-full transition-all
+      className={`rounded-2xl border p-4 flex items-start justify-between gap-3 transition-all
         ${clickable ? 'cursor-pointer hover:shadow-lg hover:-translate-y-0.5' : 'hover:shadow-md'}`}
       style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}
     >
-      {/* Top row: icon + trend badge */}
-      <div className="flex items-start justify-between gap-2">
+      {/* Left: label + sub-titles */}
+      <div className="flex flex-col gap-1 min-w-0 flex-1">
+        <p className="text-[15px] font-bold leading-snug" style={{ color: 'var(--c-t1)' }}>
+          {label}
+        </p>
+        {item.sub_title && (
+          <p className="text-[12px]" style={{ color: 'var(--c-t4)' }}>{item.sub_title}</p>
+        )}
+        {item.sub_title2 && (
+          <p className="text-[12px]" style={{ color: 'var(--c-t4)' }}>{item.sub_title2}</p>
+        )}
+      </div>
+
+      {/* Right: icon top, trend + value bottom */}
+      <div className="flex flex-col items-end justify-between gap-3 shrink-0">
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ background: `${color}1a` }}
         >
           <Icon size={18} style={{ color }} />
         </div>
-        {trend && (
-          <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-            style={{ background: `${trend.color}15`, color: trend.color }}
-          >
-            <trend.Icon size={11} />
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {trend && <trend.Icon size={14} style={{ color: trend.color }} />}
+          <p className="text-[22px] font-bold tabular-nums leading-none" style={{ color: 'var(--c-t1)' }}>
+            {String(value)}
+          </p>
+        </div>
       </div>
-
-      {/* Value + label */}
-      <div className="flex-1 min-w-0">
-        <p className="text-[28px] font-bold leading-tight tabular-nums"
-          style={{ color: 'var(--c-t1)' }}>
-          {String(value)}
-        </p>
-        <p className="text-[12px] font-medium mt-0.5 truncate" style={{ color: 'var(--c-t2)' }}>
-          {label}
-        </p>
-      </div>
-
-      {/* Sub-titles */}
-      {(item.sub_title || item.sub_title2) && (
-        <p className="text-[11px] truncate" style={{ color: 'var(--c-t5)' }}>
-          {[item.sub_title, item.sub_title2].filter(Boolean).join(' · ')}
-        </p>
-      )}
     </div>
   )
 }
@@ -130,8 +123,6 @@ export function DynamicCard({ section }: Props) {
 
   const navigate = (url: string) => router.push(url)
 
-  const cardSpan = items.length > 0 ? Math.max(1, Math.floor(12 / items.length)) : 12
-
   const body = loading ? (
     <div className="flex items-center justify-center py-8">
       <Loader2 size={18} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
@@ -141,11 +132,12 @@ export function DynamicCard({ section }: Props) {
   ) : items.length === 0 ? (
     <p className="p-4 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>No data</p>
   ) : (
-    <div className={`ctrl-grid w-full${isNoneMode ? '' : ' p-4'}`} style={{ gap: '16px' }}>
+    <div
+      className={`card-grid w-full${isNoneMode ? '' : ' p-4'}`}
+      style={{ gap: '16px', '--card-cols': items.length } as React.CSSProperties}
+    >
       {items.map((item, i) => (
-        <div key={String(item.id ?? i)} style={{ '--col-span': cardSpan } as React.CSSProperties}>
-          <StatCard item={item} index={i} onNavigate={navigate} />
-        </div>
+        <StatCard key={String(item.id ?? i)} item={item} index={i} onNavigate={navigate} />
       ))}
     </div>
   )

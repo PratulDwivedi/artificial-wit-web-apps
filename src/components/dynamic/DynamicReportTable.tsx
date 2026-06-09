@@ -197,10 +197,13 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   }
   const totalColWidth = tableCols.reduce((sum, col) => sum + colWidth(col), 0)
 
+  // Section-level binding_name takes priority; fall back to page-level binding_name_get
+  const fetchRpc = section.binding_name ?? schema.binding_name_get
+
   useEffect(() => {
-    if (!schema.binding_name_get || !expanded) return
+    if (!fetchRpc || !expanded) return
     setLoading(true); setError(null)
-    HttpHelper.rpc(schema.binding_name_get, {})
+    HttpHelper.rpc(fetchRpc, {})
       .then(({ data, error: err }) => {
         if (err) { setError(err); return }
         const env = data as unknown as RpcEnvelope<Row[]>
@@ -209,7 +212,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
       })
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.binding_name_get, expanded, viewTrigger])
+  }, [fetchRpc, expanded, viewTrigger])
 
   // Reset to page 1 whenever filters / sort / page size change
   useEffect(() => { setPage(1) }, [search, colFilters, sortKey, sortDir, pageSize])
