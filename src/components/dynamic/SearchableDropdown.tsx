@@ -14,6 +14,7 @@ interface Props {
   disabled?: boolean
   required?: boolean
   multiple?: boolean
+  inputId?: string
 }
 
 export function SearchableDropdown({
@@ -25,6 +26,7 @@ export function SearchableDropdown({
   disabled = false,
   required = false,
   multiple = false,
+  inputId,
 }: Props) {
   const [open,     setOpen]     = useState(false)
   const [query,    setQuery]    = useState('')
@@ -129,6 +131,7 @@ export function SearchableDropdown({
     <div ref={containerRef} className="relative">
       {/* Trigger button */}
       <button
+        id={inputId}
         type="button"
         disabled={disabled || loading}
         onClick={() => {
@@ -205,7 +208,7 @@ export function SearchableDropdown({
             <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 border"
               style={{ background: 'var(--c-hover)', borderColor: 'var(--c-border-strong)' }}>
               <Search size={12} style={{ color: 'var(--c-t5)' }} className="shrink-0" />
-              <input ref={searchRef} type="text"
+              <input ref={searchRef} type="text" name="search" aria-label="Search options"
                 value={query}
                 onChange={e => { setQuery(e.target.value); setFocused(-1) }}
                 onKeyDown={handleKeyDown}

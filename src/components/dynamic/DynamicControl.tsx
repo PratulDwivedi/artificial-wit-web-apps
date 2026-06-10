@@ -423,6 +423,10 @@ export function DynamicControl({
   // Grid span: data.width >= 12 → full width (col-span-2), else single col
   const colSpan = (data?.width as number ?? 6) >= 12 ? 'col-span-2' : 'col-span-1'
 
+  // Only set id in full (non-compact) mode — compact renders one control per table cell
+  // per row, so the same schema id would appear multiple times and cause duplicate-id errors.
+  const ctrlId = compact ? undefined : `ctrl-${id}`
+
   const renderInput = () => {
     switch (control_type_id) {
 
@@ -431,7 +435,7 @@ export function DynamicControl({
       case control_types.alphaOnly:
       case control_types.url:
         return (
-          <input type="text" value={(value as string) ?? ''}
+          <input id={ctrlId} type="text" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -439,7 +443,7 @@ export function DynamicControl({
 
       case control_types.email:
         return (
-          <input type="email" value={(value as string) ?? ''}
+          <input id={ctrlId} type="email" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -447,7 +451,7 @@ export function DynamicControl({
 
       case control_types.password:
         return (
-          <input type="password" value={(value as string) ?? ''}
+          <input id={ctrlId} type="password" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -455,7 +459,7 @@ export function DynamicControl({
 
       case control_types.phoneNumber:
         return (
-          <input type="tel" value={(value as string) ?? ''}
+          <input id={ctrlId} type="tel" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -464,7 +468,7 @@ export function DynamicControl({
       // ── Number family ──────────────────────────────────────────────────────
       case control_types.integer:
         return (
-          <input type="number" step="1"
+          <input id={ctrlId} type="number" step="1"
             value={value != null ? String(value) : ''}
             onChange={e => onChange(binding_name, e.target.value ? parseInt(e.target.value, 10) : null)}
             disabled={isDisabled} required={isRequired}
@@ -474,7 +478,7 @@ export function DynamicControl({
       case control_types.decimal:
       case control_types.currency:
         return (
-          <input type="number"
+          <input id={ctrlId} type="number"
             value={value != null ? String(value) : ''}
             onChange={e => onChange(binding_name, e.target.value ? parseFloat(e.target.value) : null)}
             disabled={isDisabled} required={isRequired}
@@ -484,7 +488,7 @@ export function DynamicControl({
       // ── Date/time family ───────────────────────────────────────────────────
       case control_types.date:
         return (
-          <input type="date" value={(value as string) ?? ''}
+          <input id={ctrlId} type="date" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -492,7 +496,7 @@ export function DynamicControl({
 
       case control_types.dateAndTime:
         return (
-          <input type="datetime-local" value={(value as string) ?? ''}
+          <input id={ctrlId} type="datetime-local" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -500,7 +504,7 @@ export function DynamicControl({
 
       case control_types.time:
         return (
-          <input type="time" value={(value as string) ?? ''}
+          <input id={ctrlId} type="time" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -508,7 +512,7 @@ export function DynamicControl({
 
       case control_types.month:
         return (
-          <input type="month" value={(value as string) ?? ''}
+          <input id={ctrlId} type="month" value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
@@ -517,7 +521,7 @@ export function DynamicControl({
       // ── Long text ──────────────────────────────────────────────────────────
       case control_types.textArea:
         return (
-          <textarea value={(value as string) ?? ''}
+          <textarea id={ctrlId} value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             rows={4}
@@ -528,7 +532,7 @@ export function DynamicControl({
       case control_types.checkbox:
         return (
           <div className="pt-1">
-            <input type="checkbox" id={`ctrl-${id}`}
+            <input type="checkbox" id={ctrlId}
               checked={(value as boolean) ?? false}
               onChange={e => onChange(binding_name, e.target.checked)}
               disabled={isDisabled}
@@ -540,7 +544,7 @@ export function DynamicControl({
         const on = (value as boolean) ?? false
         return (
           <div className="pt-1">
-            <button type="button" role="switch" aria-checked={on}
+            <button id={ctrlId} type="button" role="switch" aria-checked={on}
               disabled={isDisabled}
               onClick={() => !isDisabled && onChange(binding_name, !on)}
               className="relative w-10 h-5 rounded-full transition-colors disabled:opacity-50"
@@ -556,6 +560,7 @@ export function DynamicControl({
       case control_types.dropdown:
         return (
           <SearchableDropdown
+            inputId={ctrlId}
             options={options}
             value={value}
             onChange={v => onChange(binding_name, v)}
@@ -569,6 +574,7 @@ export function DynamicControl({
       case control_types.dropdownMultiselect:
         return (
           <SearchableDropdown
+            inputId={ctrlId}
             options={options}
             value={value}
             onChange={v => onChange(binding_name, v)}
@@ -630,7 +636,7 @@ export function DynamicControl({
                   {filename.split('/').pop()}
                 </span>
               )}
-              <input ref={fileRef} type="file"
+              <input id={ctrlId} ref={fileRef} type="file"
                 accept={control_type_id === control_types.image ? 'image/*' : undefined}
                 className="hidden" onChange={handleFileUpload} />
               {src && (
@@ -671,7 +677,7 @@ export function DynamicControl({
       case control_types.colorPicker:
         return (
           <div className="flex items-center gap-2">
-            <input type="color"
+            <input id={ctrlId} type="color"
               value={(value as string) ?? '#6366f1'}
               onChange={e => onChange(binding_name, e.target.value)}
               disabled={isDisabled}
@@ -688,12 +694,12 @@ export function DynamicControl({
         const geo = (value as { lat?: number; lng?: number }) ?? {}
         return (
           <div className="flex gap-2">
-            <input type="number" placeholder="Latitude"
+            <input id={ctrlId} name={`${binding_name}_lat`} type="number" placeholder="Latitude"
               value={geo.lat ?? ''} step="any"
               onChange={e => onChange(binding_name, { ...geo, lat: e.target.value ? parseFloat(e.target.value) : undefined })}
               disabled={isDisabled}
               className={`${INPUT_CLASS} flex-1`} style={INPUT_STYLE} />
-            <input type="number" placeholder="Longitude"
+            <input name={`${binding_name}_lng`} type="number" placeholder="Longitude"
               value={geo.lng ?? ''} step="any"
               onChange={e => onChange(binding_name, { ...geo, lng: e.target.value ? parseFloat(e.target.value) : undefined })}
               disabled={isDisabled}
@@ -705,7 +711,7 @@ export function DynamicControl({
       // ── HTML editor (basic) ────────────────────────────────────────────────
       case control_types.htmlEditor:
         return (
-          <textarea value={(value as string) ?? ''}
+          <textarea id={ctrlId} value={(value as string) ?? ''}
             onChange={e => onChange(binding_name, e.target.value)}
             disabled={isDisabled} required={isRequired}
             rows={6}
@@ -887,7 +893,7 @@ export function DynamicControl({
 
   return (
     <div className={colSpan}>
-      <label htmlFor={`ctrl-${id}`}
+      <label htmlFor={ctrlId}
         className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide mb-1.5"
         style={{ color: 'var(--c-t4)' }}>
         {name}

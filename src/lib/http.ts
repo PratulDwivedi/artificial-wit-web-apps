@@ -3,9 +3,8 @@ const ACCESS_COOKIE  = 'aw_token'
 const REFRESH_COOKIE = 'aw_refresh'
 
 // ── RPC deduplication cache ───────────────────────────────────────────────────
-// Collapses concurrent identical calls into one request and caches the result
-// for RPC_TTL_MS so rapid re-mounts (React StrictMode, cascade re-renders) never
-// hit the network more than once per unique call within the window.
+// Collapses concurrent identical calls into one request and caches SUCCESSFUL
+// results for RPC_TTL_MS. Errors are never cached so the next call always retries.
 const RPC_TTL_MS = 3_000
 
 type RpcCached = {
@@ -21,6 +20,9 @@ const rpcCache = new Map<string, RpcCached>()
 function rpcKey(fn: string, params: Record<string, unknown>): string {
   return `${fn}\x00${JSON.stringify(params)}`
 }
+
+// Deduplicates concurrent token-refresh calls so only one refresh runs at a time.
+let refreshPromise: Promise<boolean> | null = null
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null
@@ -56,23 +58,26 @@ export class HttpHelper {
   }
 
   // Attempts a silent token refresh. Returns true if a new access token was obtained.
-  static async tryRefresh(): Promise<boolean> {
+  // Concurrent calls share the same in-flight refresh so only one request is made.
+  static tryRefresh(): Promise<boolean> {
+    if (refreshPromise) return refreshPromise
     const refreshToken = getCookie(REFRESH_COOKIE)
-    if (!refreshToken) return false
-    try {
-      const res = await fetch(`${BASE}/auth/refresh_token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+    if (!refreshToken) return Promise.resolve(false)
+    refreshPromise = fetch(`${BASE}/auth/refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+      .then(async res => {
+        if (!res.ok) return false
+        const json = await res.json()
+        if (json.access_token)  setCookie(ACCESS_COOKIE,  json.access_token)
+        if (json.refresh_token) setCookie(REFRESH_COOKIE, json.refresh_token)
+        return !!json.access_token
       })
-      if (!res.ok) return false
-      const json = await res.json()
-      if (json.access_token)  setCookie(ACCESS_COOKIE,  json.access_token)
-      if (json.refresh_token) setCookie(REFRESH_COOKIE, json.refresh_token)
-      return !!json.access_token
-    } catch {
-      return false
-    }
+      .catch(() => false)
+      .finally(() => { refreshPromise = null })
+    return refreshPromise
   }
 
   static async login(
@@ -165,7 +170,13 @@ export class HttpHelper {
 
       return { data: json, error: null }
     })().then(result => {
-      rpcCache.set(key, { result, at: Date.now() })
+      // Only cache HTTP-level successes — auth failures and network errors must not be
+      // cached so the next call retries rather than returning a stale failure.
+      if (result.error === null) {
+        rpcCache.set(key, { result, at: Date.now() })
+      } else {
+        rpcCache.delete(key)
+      }
       return result
     }).catch(err => {
       rpcCache.delete(key)

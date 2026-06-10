@@ -293,6 +293,7 @@ export function TreeViewSelect({
             <Search size={12} style={{ color: 'var(--c-t4)', flexShrink: 0 }} />
             <input
               autoFocus
+              name="search" aria-label="Search options"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search…"
@@ -334,7 +335,7 @@ export function TreeViewSelect({
       )}
 
       {required && !hasValue && (
-        <input type="text" required tabIndex={-1} aria-hidden
+        <input type="text" required tabIndex={-1} aria-hidden name="_tree_required"
           className="absolute inset-0 opacity-0 pointer-events-none w-full"
           defaultValue="" />
       )}
