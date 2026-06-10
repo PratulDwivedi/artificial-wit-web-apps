@@ -15,6 +15,9 @@ import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
 import { resolveIcon } from '@/lib/icons'
 import type { PageSection, PageSchema, RpcEnvelope } from '@/lib/schema'
+import AccessControl from '@/components/common/AccessControl'
+import type { AccessControlValue } from '@/components/common/AccessControl'
+import { ShieldCheck, Globe, Lock } from 'lucide-react'
 
 type Row = Record<string, unknown>
 type SortDir = 'asc' | 'desc'
@@ -57,13 +60,31 @@ function ActionCell({ control, row }: { control: PageSection['controls'][number]
       type="button"
       onClick={() => router.push(href)}
       title={control.name}
-      className="inline-flex items-center justify-center p-1.5 rounded-lg transition border"
-      style={{ color, borderColor: `${color}40`, background: `${color}10` }}
+      className="inline-flex items-center justify-center p-1 rounded-lg transition"
+      style={{ color, background: `${color}10` }}
       onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
       onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
     >
       <Icon size={13} />
     </button>
+  )
+}
+
+// ── Access control cell ───────────────────────────────────────────────────────
+
+function AccessControlBadge({ value }: { value: AccessControlValue | null }) {
+  if (!value?.scope) return <span style={{ color: 'var(--c-t5)' }}>—</span>
+  const cfg = {
+    private:   { Icon: Lock,        color: '#6b7280', label: 'Private'   },
+    protected: { Icon: ShieldCheck, color: '#f59e0b', label: 'Protected' },
+    public:    { Icon: Globe,       color: '#16a34a', label: 'Public'    },
+  }[value.scope] ?? { Icon: ShieldCheck, color: 'var(--c-t4)', label: value.scope }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold"
+      style={{ background: `${cfg.color}18`, color: cfg.color }}>
+      <cfg.Icon size={10} />{cfg.label}
+    </span>
   )
 }
 
@@ -164,6 +185,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   const [page,        setPage]        = useState(1)
   const [pageSize,    setPageSize]    = useState(25)
 
+  const [acOpen, setAcOpen] = useState<{ row: Row; col: PageSection['controls'][number] } | null>(null)
+
   const allControls      = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
   const columns          = allControls.filter(c =>
     c.display_mode_id !== control_display_modes.none_hidden || editMode
@@ -174,7 +197,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   const hyperlinkRowCols = columns.filter(c => c.control_type_id === control_types.hyperlinkRow)
   const hasRowSelect     = hyperlinkRowCols.length > 0
   const tableCols        = columns.filter(c => c.control_type_id !== control_types.hyperlinkRow)
-  const dataCols         = tableCols.filter(c => !ACTION_TYPES.has(c.control_type_id))
+  const iconTableCols    = tableCols.filter(c => ACTION_TYPES.has(c.control_type_id) || c.control_type_id === control_types.accessControl)
+  const regularTableCols = tableCols.filter(c => !ACTION_TYPES.has(c.control_type_id) && c.control_type_id !== control_types.accessControl)
+  const dataCols         = regularTableCols.filter(c => true)
 
   // Row key field: binding_name of first hyperlinkRow control (typically "id")
   const rowKeyField = hyperlinkRowCols[0]?.binding_name ?? 'id'
@@ -202,7 +227,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
     const isHidden = col.display_mode_id === control_display_modes.none_hidden
     return (isAction || isHidden) ? 1 : 4
   }
-  const totalColWidth = tableCols.reduce((sum, col) => sum + colWidth(col), 0)
+  const totalColWidth = regularTableCols.reduce((sum, col) => sum + colWidth(col), 0) + iconTableCols.length
 
   // Section-level binding_name takes priority; fall back to page-level binding_name_get
   const fetchRpc = section.binding_name ?? schema.binding_name_get
@@ -412,9 +437,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
             <colgroup>
               <col style={{ width: '44px' }} />
               {hasRowSelect && <col style={{ width: '40px' }} />}
-              {tableCols.map(col => (
+              {regularTableCols.map(col => (
                 <col key={col.id} style={{ width: `${(colWidth(col) / totalColWidth) * 100}%` }} />
               ))}
+              {iconTableCols.length > 0 && (
+                <col style={{ width: `${(iconTableCols.length / totalColWidth) * 100}%` }} />
+              )}
             </colgroup>
             <thead>
               {/* Column headers with sort */}
@@ -443,28 +471,25 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                     </th>
                   )
                 })()}
-                {tableCols.map(col => {
-                  const isAction  = ACTION_TYPES.has(col.control_type_id)
-                  const isHidden  = col.display_mode_id === control_display_modes.none_hidden
+                {regularTableCols.map(col => {
+                  const isHidden = col.display_mode_id === control_display_modes.none_hidden
                   return (
                     <th key={col.id}
                       className="px-3 py-1 text-left font-semibold whitespace-nowrap"
                       style={{ color: 'var(--c-t3)' }}>
                       <span className="inline-flex items-center gap-1">
-                        {!isAction && (
-                          <button type="button"
-                            onClick={() => handleSort(col.binding_name)}
-                            className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
-                            {col.name}
-                            {isHidden && (
-                              <span className="text-[9px] font-normal px-1 py-0.5 rounded"
-                                style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
-                                Hidden
-                              </span>
-                            )}
-                            <SortIcon col={col.binding_name} sortKey={sortKey} sortDir={sortDir} />
-                          </button>
-                        )}
+                        <button type="button"
+                          onClick={() => handleSort(col.binding_name)}
+                          className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
+                          {col.name}
+                          {isHidden && (
+                            <span className="text-[9px] font-normal px-1 py-0.5 rounded"
+                              style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
+                              Hidden
+                            </span>
+                          )}
+                          <SortIcon col={col.binding_name} sortKey={sortKey} sortDir={sortDir} />
+                        </button>
                         {editMode && (
                           <button type="button"
                             onClick={() => router.push(`/page_section_control?id=${col.id}`)}
@@ -477,6 +502,23 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                     </th>
                   )
                 })}
+                {iconTableCols.length > 0 && (
+                  <th style={{
+                    width: 1, whiteSpace: 'nowrap', paddingTop: 4, paddingBottom: 4,
+                    paddingLeft: 8, paddingRight: 12,
+                    borderLeft: '1px solid var(--c-border)',
+                  }}>
+                    {editMode && iconTableCols.map(col => (
+                      <button key={col.id} type="button"
+                        onClick={() => router.push(`/page_section_control?id=${col.id}`)}
+                        className="p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
+                        title="Edit control"
+                        style={{ color: 'var(--c-t3)' }}>
+                        <Pencil size={10} />
+                      </button>
+                    ))}
+                  </th>
+                )}
               </tr>
 
               {/* Per-column filter inputs */}
@@ -484,31 +526,27 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                 <tr style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-panel)' }}>
                   <th style={{ width: 44 }} />
                   {hasRowSelect && <th style={{ width: 40 }} />}
-                  {tableCols.map(col => {
-                    const isAction = ACTION_TYPES.has(col.control_type_id)
-                    return (
-                      <th key={col.id} className="px-2 py-1.5 font-normal">
-                        {!isAction && (
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder={`Filter…`}
-                              value={colFilters[col.binding_name] ?? ''}
-                              onChange={e => updateColFilter(col.binding_name, e.target.value)}
-                              className="w-full px-2 pr-6 py-1 rounded text-[11px] border outline-none"
-                              style={{ borderColor: 'var(--c-border)', background: 'var(--c-topbar)', color: 'var(--c-t1)' }}
-                            />
-                            {colFilters[col.binding_name] && (
-                              <button onClick={() => updateColFilter(col.binding_name, '')}
-                                className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition">
-                                <X size={9} />
-                              </button>
-                            )}
-                          </div>
+                  {regularTableCols.map(col => (
+                    <th key={col.id} className="px-2 py-1.5 font-normal">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder={`Filter…`}
+                          value={colFilters[col.binding_name] ?? ''}
+                          onChange={e => updateColFilter(col.binding_name, e.target.value)}
+                          className="w-full px-2 pr-6 py-1 rounded text-[11px] border outline-none"
+                          style={{ borderColor: 'var(--c-border)', background: 'var(--c-topbar)', color: 'var(--c-t1)' }}
+                        />
+                        {colFilters[col.binding_name] && (
+                          <button onClick={() => updateColFilter(col.binding_name, '')}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition">
+                            <X size={9} />
+                          </button>
                         )}
-                      </th>
-                    )
-                  })}
+                      </div>
+                    </th>
+                  ))}
+                  {iconTableCols.length > 0 && <th style={{ borderLeft: '1px solid var(--c-border)' }} />}
                 </tr>
               )}
             </thead>
@@ -532,22 +570,47 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                         />
                       </td>
                     )}
-                    {tableCols.map(col => (
-                      <td key={col.id} className="px-3 py-0.5" style={{ color: 'var(--c-t2)' }}>
-                        {ACTION_TYPES.has(col.control_type_id) ? (
-                          <ActionCell control={col} row={row} />
-                        ) : (
-                          (() => {
-                            const val = resolvePath(row, col.binding_name)
-                            if (val === null || val === undefined)
-                              return <span style={{ color: 'var(--c-t5)' }}>—</span>
-                            if (typeof val === 'boolean')
-                              return <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
-                            return <>{String(val)}</>
-                          })()
-                        )}
+                    {regularTableCols.map(col => {
+                      const val = resolvePath(row, col.binding_name)
+                      return (
+                        <td key={col.id} className="px-3 py-0.5" style={{ color: 'var(--c-t2)' }}>
+                          {val === null || val === undefined
+                            ? <span style={{ color: 'var(--c-t5)' }}>—</span>
+                            : typeof val === 'boolean'
+                            ? <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
+                            : <>{String(val)}</>}
+                        </td>
+                      )
+                    })}
+                    {iconTableCols.length > 0 && (
+                      <td style={{
+                        whiteSpace: 'nowrap', paddingTop: 2, paddingBottom: 2,
+                        paddingLeft: 8, paddingRight: 12,
+                        borderLeft: '1px solid var(--c-border)',
+                      }}>
+                        <div className="inline-flex items-center gap-0.5">
+                          {iconTableCols.map(col => {
+                            if (col.control_type_id === control_types.accessControl) {
+                              const ac = resolvePath(row, col.binding_name) as { scope?: string; roles?: number[] } | null
+                              const color = ac?.scope === 'public' ? '#16a34a' : ac?.scope === 'protected' ? '#f59e0b' : '#6b7280'
+                              const AcIcon = resolveIcon(col.data?.item_icon as string | undefined, ShieldCheck)
+                              return (
+                                <button key={col.id} type="button"
+                                  onClick={() => setAcOpen({ row, col })}
+                                  title={col.name}
+                                  className="inline-flex items-center justify-center p-1 rounded-lg transition"
+                                  style={{ color, background: `${color}10` }}
+                                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
+                                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                                  <AcIcon size={13} />
+                                </button>
+                              )
+                            }
+                            return <ActionCell key={col.id} control={col} row={row} />
+                          })}
+                        </div>
                       </td>
-                    ))}
+                    )}
                   </tr>
                 )
               })}
@@ -597,6 +660,24 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         </div>
       )}
       {body}
+      {acOpen && (
+        <AccessControl
+          resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}
+          recordId={Number(resolvePath(acOpen.row, 'id') ?? 0)}
+          routeName={schema.route_name}
+          pageId={schema.id}
+          accessControl={resolvePath(acOpen.row, acOpen.col.binding_name) as { scope?: string; roles?: number[] } | undefined}
+          onClose={() => setAcOpen(null)}
+          onSaved={(val: AccessControlValue) => {
+            setRows(prev => prev.map(r =>
+              String(resolvePath(r, 'id')) === String(resolvePath(acOpen.row, 'id'))
+                ? { ...r, [acOpen.col.binding_name]: val }
+                : r
+            ))
+            setAcOpen(null)
+          }}
+        />
+      )}
     </div>
   )
 
@@ -633,6 +714,25 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         )}
       </div>
       {expanded && body}
+
+      {acOpen && (
+        <AccessControl
+          resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}
+          recordId={Number(resolvePath(acOpen.row, 'id') ?? 0)}
+          routeName={schema.route_name}
+          pageId={schema.id}
+          accessControl={resolvePath(acOpen.row, acOpen.col.binding_name) as { scope?: string; roles?: number[] } | undefined}
+          onClose={() => setAcOpen(null)}
+          onSaved={(val: AccessControlValue) => {
+            setRows(prev => prev.map(r =>
+              String(resolvePath(r, 'id')) === String(resolvePath(acOpen.row, 'id'))
+                ? { ...r, [acOpen.col.binding_name]: val }
+                : r
+            ))
+            setAcOpen(null)
+          }}
+        />
+      )}
     </div>
   )
 }

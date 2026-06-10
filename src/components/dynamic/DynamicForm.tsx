@@ -81,7 +81,8 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
   useEffect(() => {
     if (!recordId || !schema.binding_name_get) return
     setLoading(true)
-    HttpHelper.rpc(schema.binding_name_get, { p_id: parseInt(recordId, 10) })
+    const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+    HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
       .then(({ data }) => {
         const env = data as unknown as RpcEnvelope<Record<string, unknown>[]>
         if (env?.is_success && env.data?.[0]) setFormData(env.data[0])

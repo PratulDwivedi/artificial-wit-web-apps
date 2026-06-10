@@ -133,7 +133,8 @@ function buildPayload(
 
   // Inject p_id from the URL when editing, if no schema control already emitted it
   if (recordId && !('p_id' in payload)) {
-    payload['p_id'] = parseInt(recordId, 10)
+    const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+    payload['p_id'] = ids.length === 1 ? ids[0] : ids
   }
 
   return payload
@@ -215,7 +216,8 @@ export function DynamicPage({ routeName }: Props) {
     if (!confirm('Are you sure you want to delete this record?')) return
     setDeleting(true); setDeleteMsg(null)
     try {
-      const { data, error: err } = await HttpHelper.rpc(bindingName, { p_id: parseInt(recordId, 10) })
+      const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      const { data, error: err } = await HttpHelper.rpc(bindingName, { p_id: ids.length === 1 ? ids[0] : ids })
       if (err) throw new Error(err)
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Delete failed')

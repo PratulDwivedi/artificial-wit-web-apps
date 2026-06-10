@@ -73,7 +73,8 @@ export function DynamicTable({ section, schema, recordId, onDataChange }: Props)
     if (!isEditable || !schema?.binding_name_get || !expanded) return
     if (!recordId) { setRows([{}]); return }
     setLoading(true); setError(null)
-    HttpHelper.rpc(schema.binding_name_get, { p_id: parseInt(recordId, 10) })
+    const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+    HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
       .then(({ data, error: err }) => {
         if (err) { setError(err); return }
         const env = data as unknown as RpcEnvelope<Record<string, unknown>[]>
