@@ -2,6 +2,26 @@ const BASE           = process.env.NEXT_PUBLIC_AW_API_BASE_URL!
 const ACCESS_COOKIE  = 'aw_token'
 const REFRESH_COOKIE = 'aw_refresh'
 
+// ── RPC deduplication cache ───────────────────────────────────────────────────
+// Collapses concurrent identical calls into one request and caches the result
+// for RPC_TTL_MS so rapid re-mounts (React StrictMode, cascade re-renders) never
+// hit the network more than once per unique call within the window.
+const RPC_TTL_MS = 3_000
+
+type RpcCached = {
+  pending?: Promise<RpcAny>
+  result?:  RpcAny
+  at?:      number
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RpcAny = { data: any; error: string | null }
+
+const rpcCache = new Map<string, RpcCached>()
+
+function rpcKey(fn: string, params: Record<string, unknown>): string {
+  return `${fn}\x00${JSON.stringify(params)}`
+}
+
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null
   const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'))
@@ -86,10 +106,23 @@ export class HttpHelper {
 
   // Calls POST /rest/{fn} and returns the raw {is_success, data, message} envelope.
   // Automatically refreshes the access token on 401 and retries once.
-  static async rpc<T = unknown>(
+  // Identical calls within RPC_TTL_MS are deduplicated: concurrent calls share one
+  // in-flight promise; calls after resolution get the cached result immediately.
+  static rpc<T = unknown>(
     fn: string,
     params: Record<string, unknown> = {}
   ): Promise<{ data: { is_success: boolean; data: T; message: string } | null; error: string | null }> {
+    const key   = rpcKey(fn, params)
+    const entry = rpcCache.get(key)
+
+    // Return in-flight promise (deduplicates concurrent calls)
+    if (entry?.pending) return entry.pending
+
+    // Return cached result if still within TTL
+    if (entry?.result !== undefined && entry.at !== undefined && Date.now() - entry.at < RPC_TTL_MS) {
+      return Promise.resolve(entry.result)
+    }
+
     const doRequest = () => {
       const token = HttpHelper.getToken()
       return fetch(`${BASE}/rest/${fn}`, {
@@ -102,33 +135,49 @@ export class HttpHelper {
       })
     }
 
-    let res: Response
-    try {
-      res = await doRequest()
-    } catch (err) {
-      return { data: null, error: (err as Error).message }
-    }
-
-    if (res.status === 401) {
-      const refreshed = await HttpHelper.tryRefresh()
-      if (!refreshed) {
-        HttpHelper.logout()
-        return { data: null, error: 'Session expired. Please log in again.' }
-      }
+    const pending: Promise<RpcAny> = (async () => {
+      let res: Response
       try {
         res = await doRequest()
       } catch (err) {
         return { data: null, error: (err as Error).message }
       }
-    }
 
-    let json: { is_success: boolean; data: T; message: string }
-    try { json = await res.json() } catch { return { data: null, error: `HTTP ${res.status}` } }
+      if (res.status === 401) {
+        const refreshed = await HttpHelper.tryRefresh()
+        if (!refreshed) {
+          HttpHelper.logout()
+          return { data: null, error: 'Session expired. Please log in again.' }
+        }
+        try {
+          res = await doRequest()
+        } catch (err) {
+          return { data: null, error: (err as Error).message }
+        }
+      }
 
-    if (!res.ok) {
-      return { data: null, error: json?.message ?? `HTTP ${res.status}` }
-    }
+      let json: { is_success: boolean; data: T; message: string }
+      try { json = await res.json() } catch { return { data: null, error: `HTTP ${res.status}` } }
 
-    return { data: json, error: null }
+      if (!res.ok) {
+        return { data: null, error: (json as { message?: string })?.message ?? `HTTP ${res.status}` }
+      }
+
+      return { data: json, error: null }
+    })().then(result => {
+      rpcCache.set(key, { result, at: Date.now() })
+      return result
+    }).catch(err => {
+      rpcCache.delete(key)
+      throw err
+    })
+
+    rpcCache.set(key, { pending })
+    return pending
+  }
+
+  // Explicitly evict a cached RPC result (call after any mutation for that resource)
+  static rpcInvalidate(fn: string, params: Record<string, unknown> = {}): void {
+    rpcCache.delete(rpcKey(fn, params))
   }
 }

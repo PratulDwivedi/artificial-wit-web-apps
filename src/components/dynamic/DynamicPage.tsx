@@ -141,6 +141,9 @@ function buildPayload(
 }
 
 export function DynamicPage({ routeName }: Props) {
+  const searchParams = useSearchParams()
+  const recordId     = searchParams.get('id') ?? undefined
+
   const [schema,     setSchema]    = useState<PageSchema | null>(null)
   const [loading,    setLoading]   = useState(true)
   const [error,      setError]     = useState<string | null>(null)
@@ -149,15 +152,16 @@ export function DynamicPage({ routeName }: Props) {
   const [viewTrigger, setViewTrigger] = useState(0)
   const [deleting,   setDeleting]  = useState(false)
   const [deleteMsg,  setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  // Pre-fetched record data loaded at page level so form + table sections share one RPC call
+  const [initialRecordData, setInitialRecordData] = useState<Record<string, unknown> | null>(null)
+  const [loadingRecord,     setLoadingRecord]      = useState(!!recordId)
 
   // Accumulates the latest data from each section (keyed by section.id)
   const sectionDataRef = useRef(new Map<number, unknown>())
   // Merged flat data from all sections — used for cross-section cascade resolution
   const [sharedData, setSharedData] = useState<Record<string, unknown>>({})
 
-  const searchParams = useSearchParams()
-  const recordId     = searchParams.get('id') ?? undefined
-  const router       = useRouter()
+  const router = useRouter()
 
   // Must be before any early returns — Rules of Hooks
   const { setSidebarOpen, editMode, setEditMode, canEditMode } = useAppStore()
@@ -174,6 +178,19 @@ export function DynamicPage({ routeName }: Props) {
       })
       .finally(() => setLoading(false))
   }, [routeName])
+
+  // Load the record data once at page level so DynamicForm and DynamicTable share a single RPC call
+  useEffect(() => {
+    if (!recordId || !schema?.binding_name_get) { setLoadingRecord(false); return }
+    setLoadingRecord(true)
+    const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+    HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
+      .then(({ data }) => {
+        const env = data as unknown as RpcEnvelope<Record<string, unknown>[]>
+        setInitialRecordData(env?.is_success && env.data?.[0] ? env.data[0] : {})
+      })
+      .finally(() => setLoadingRecord(false))
+  }, [schema?.binding_name_get, recordId])
 
   // Called by each section whenever its data changes
   const handleSectionData = useCallback((sectionId: number, data: unknown) => {
@@ -230,7 +247,7 @@ export function DynamicPage({ routeName }: Props) {
     }
   }, [recordId, router])
 
-  if (loading) return (
+  if (loading || loadingRecord) return (
     <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--c-base)' }}>
       <Loader2 size={20} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
     </div>
@@ -393,6 +410,7 @@ export function DynamicPage({ routeName }: Props) {
                 viewTrigger={showView ? viewTrigger : undefined}
                 onDataChange={handleSectionData}
                 sharedData={sharedData}
+                initialData={initialRecordData ?? undefined}
               />
             </div>
           ))}
@@ -411,6 +429,7 @@ function SectionRenderer({
   viewTrigger,
   onDataChange,
   sharedData,
+  initialData,
 }: {
   section: PageSection
   schema: PageSchema
@@ -418,6 +437,7 @@ function SectionRenderer({
   viewTrigger?: number
   onDataChange: (sectionId: number, data: unknown) => void
   sharedData?: Record<string, unknown>
+  initialData?: Record<string, unknown>
 }) {
   const { child_display_modes } = APP_CONSTANTS
 
@@ -430,6 +450,7 @@ function SectionRenderer({
           recordId={recordId}
           onDataChange={data => onDataChange(section.id, data)}
           sharedData={sharedData}
+          initialData={initialData}
         />
       )
 
@@ -453,6 +474,7 @@ function SectionRenderer({
           schema={schema}
           recordId={recordId}
           onDataChange={rows => onDataChange(section.id, rows)}
+          initialData={initialData}
         />
       )
 

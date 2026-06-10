@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
@@ -14,6 +14,7 @@ interface Props {
   schema?: PageSchema   // pass for editable mode (child_display_mode_id 32)
   recordId?: string     // pass when editing an existing record
   onDataChange?: (rows: Row[]) => void
+  initialData?: Record<string, unknown>  // pre-loaded record data from DynamicPage
 }
 
 type Row = Record<string, unknown>
@@ -36,7 +37,7 @@ function evalFormula(formula: string, row: Row): unknown {
   }
 }
 
-export function DynamicTable({ section, schema, recordId, onDataChange }: Props) {
+export function DynamicTable({ section, schema, recordId, onDataChange, initialData }: Props) {
   const { section_display_modes, control_display_modes, control_types } = APP_CONSTANTS
   const router   = useRouter()
   const editMode = useAppStore(s => s.editMode)
@@ -68,10 +69,20 @@ export function DynamicTable({ section, schema, recordId, onDataChange }: Props)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
+
   // ── Editable mode: load initial rows from parent record GET ─────────────────
   useEffect(() => {
     if (!isEditable || !schema?.binding_name_get || !expanded) return
     if (!recordId) { setRows([{}]); return }
+
+    if (initialData) {
+      const sectionRows = initialData[section.binding_name ?? '']
+      setRows(Array.isArray(sectionRows) && sectionRows.length > 0 ? sectionRows as Row[] : [{}])
+      return
+    }
+
     setLoading(true); setError(null)
     const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
     HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
@@ -106,10 +117,10 @@ export function DynamicTable({ section, schema, recordId, onDataChange }: Props)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.binding_name, expanded])
 
-  // Report rows to parent whenever they change
+  // Report rows to parent whenever they change (ref avoids re-firing on callback identity changes)
   useEffect(() => {
-    onDataChange?.(rows)
-  }, [rows, onDataChange])
+    onDataChangeRef.current?.(rows)
+  }, [rows])
 
   const addRow = useCallback(() => {
     setRows(prev => [...prev, {}])

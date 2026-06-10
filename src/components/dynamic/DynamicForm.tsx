@@ -15,6 +15,7 @@ interface Props {
   recordId?: string
   onDataChange?: (data: Record<string, unknown>) => void
   sharedData?: Record<string, unknown>
+  initialData?: Record<string, unknown>
 }
 
 function colSpan(width: unknown, defaultSpan = 4): number {
@@ -50,7 +51,7 @@ function setNestedValue(
   return { ...obj, [prefix]: setNestedValue(child, rest, value) }
 }
 
-export function DynamicForm({ section, schema, recordId, onDataChange, sharedData }: Props) {
+export function DynamicForm({ section, schema, recordId, onDataChange, sharedData, initialData }: Props) {
   const { section_display_modes, control_display_modes } = APP_CONSTANTS
   const router      = useRouter()
   const editMode    = useAppStore(s => s.editMode)
@@ -60,6 +61,7 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
 
   // Pre-fill form with query params (e.g. ?section_id=27) when creating a new record
   const [formData, setFormData] = useState<Record<string, unknown>>(() => {
+    if (initialData) return initialData
     if (recordId) return {}
     const init: Record<string, unknown> = {}
     searchParams.forEach((raw, key) => {
@@ -80,6 +82,7 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
 
   useEffect(() => {
     if (!recordId || !schema.binding_name_get) return
+    if (initialData) return  // page pre-loaded the record; skip individual fetch
     setLoading(true)
     const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
     HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
