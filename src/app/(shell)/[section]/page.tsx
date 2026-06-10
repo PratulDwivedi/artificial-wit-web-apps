@@ -5,14 +5,16 @@ import { TenantPage } from '@/components/profile/TenantPage'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { DynamicPage } from '@/components/dynamic/DynamicPage'
 import { TemplatePage } from '@/components/template/TemplatePage'
+import { CodeTemplateShell } from '@/components/code-template/CodeTemplateShell'
 
 function resolveLocalPage(section: string): React.ReactNode | null {
   switch (section) {
-    case 'profile':  return <ProfilePage />
-    case 'tenant':   return <TenantPage />
-    case 'settings': return <SettingsPage />
-    case 'template': return <TemplatePage />
-    default:         return null
+    case 'profile':       return <ProfilePage />
+    case 'tenant':        return <TenantPage />
+    case 'settings':      return <SettingsPage />
+    case 'template':      return <TemplatePage />
+    case 'code_template': return <CodeTemplateShell />
+    default:              return null
   }
 }
 

@@ -50,6 +50,9 @@ export const APP_CONSTANTS = {
     markdownParser: 36,
     colorPicker: 37,
     fieldConditionTable: 38,
+    qrCode: 39,
+    barCode: 40,
+    accessControl: 41,
   },
   platforms: {
     both: 20,
