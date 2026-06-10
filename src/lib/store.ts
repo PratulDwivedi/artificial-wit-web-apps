@@ -7,6 +7,7 @@ export interface ProfileData {
   email: string
   user_id: string
   user_name: string
+  full_name?: string | null
   tenant_id: number
   tenant: {
     id: number
@@ -32,6 +33,7 @@ export interface ProfileData {
 interface AppState {
   userEmail:      string | null
   userName:       string | null
+  fullName:       string | null
   profilePic:     string | null
   tenantName:     string | null
   tenantLogoUrl:  string | null
@@ -54,6 +56,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   userEmail:     null,
   userName:      null,
+  fullName:      null,
   profilePic:    null,
   tenantName:    null,
   tenantLogoUrl: null,
@@ -75,6 +78,7 @@ export const useAppStore = create<AppState>((set) => ({
   setProfile: (p) => set({
     userEmail:     p.email ?? null,
     userName:      p.user_name ?? null,
+    fullName:      p.full_name ?? null,
     profilePic:    p.data?.profile_pic ?? null,
     tenantName:    p.tenant?.name ?? null,
     tenantLogoUrl: p.tenant?.data?.logo_url ?? null,

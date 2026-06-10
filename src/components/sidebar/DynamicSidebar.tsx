@@ -225,12 +225,10 @@ function UserMenu() {
   const ref = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { theme, primary, toggle: toggleTheme, setPrimary } = useTheme()
-  const { profilePic, userName, userEmail } = useAppStore()
+  const { profilePic, fullName, userName, userEmail } = useAppStore()
 
-  // Initials from actual user_name ("Demo User" → "DU")
-  const initials = userName
-    ? userName.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
-    : 'AW'
+  const displayName = fullName || userName || 'User'
+  const initials    = displayName.trim().split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -249,20 +247,20 @@ function UserMenu() {
       {showProfile  && <ProfileModal  onClose={() => setShowProfile(false)}  />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
-      <button onClick={() => setOpen(!open)} title={userEmail ?? userName ?? 'User'}
-        className="flex items-center gap-2 w-full px-1 py-1.5 rounded-lg transition hover:bg-[var(--c-hover)]">
-        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center shrink-0"
-          style={{ background: 'var(--c-primary)' }}>
+      <button onClick={() => setOpen(!open)} title={userEmail ?? displayName}
+        className="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg transition hover:bg-[var(--c-hover)]">
+        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+          style={{ background: 'var(--c-primary)', outline: '2px solid var(--c-border)' }}>
           {profilePic
             ? <img src={`/api/profile-pics/download?filename=${encodeURIComponent(profilePic)}`} alt={initials} className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
-            : <span className="text-white text-[9px] font-bold">{initials}</span>}
+            : <span className="text-white text-[11px] font-bold">{initials}</span>}
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-[11px] font-semibold truncate leading-tight" style={{ color: 'var(--c-t1)' }}>
-            {userName ?? 'User'}
+          <p className="text-[12px] font-semibold truncate leading-tight" style={{ color: 'var(--c-t1)' }}>
+            {displayName}
           </p>
           {userEmail && (
-            <p className="text-[9px] truncate leading-tight" style={{ color: 'var(--c-t5)' }}>{userEmail}</p>
+            <p className="text-[10px] truncate leading-tight" style={{ color: 'var(--c-t4)' }}>{userEmail}</p>
           )}
         </div>
         <ChevronDown size={11} style={{ color: 'var(--c-t5)' }} />
@@ -271,6 +269,24 @@ function UserMenu() {
       {open && (
         <div className="absolute bottom-full left-2 right-2 mb-1 rounded-xl border shadow-2xl overflow-hidden z-50"
           style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
+
+          {/* User info header */}
+{/*           
+          <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--c-border)' }}>
+            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+              style={{ background: 'var(--c-primary)' }}>
+              {profilePic
+                ? <img src={`/api/profile-pics/download?filename=${encodeURIComponent(profilePic)}`} alt={initials} className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
+                : <span className="text-white text-[13px] font-bold">{initials}</span>}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--c-t1)' }}>{displayName}</p>
+              {userEmail && (
+                <p className="text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>{userEmail}</p>
+              )}
+            </div>
+          </div> */}
+
           <div className="py-1">
             <button onClick={() => { setOpen(false); setShowProfile(true) }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[var(--c-hover)]"
