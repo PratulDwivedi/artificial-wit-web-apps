@@ -6,6 +6,7 @@ import {
   Copy, Check, RefreshCw, X,
 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -57,12 +58,13 @@ function CopyBtn({ value }: { value: string }) {
 // ── Tab: API Key ───────────────────────────────────────────────────────────────
 
 function ApiKeyTab() {
-  const [masked,    setMasked]    = useState<string | null>(null)
-  const [show,      setShow]      = useState(false)
-  const [full,      setFull]      = useState<string | null>(null)
-  const [loading,   setLoading]   = useState(true)
-  const [resetting, setResetting] = useState(false)
-  const [msg,       setMsg]       = useState<{ text: string; ok: boolean } | null>(null)
+  const [masked,       setMasked]       = useState<string | null>(null)
+  const [show,         setShow]         = useState(false)
+  const [full,         setFull]         = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [resetting,    setResetting]    = useState(false)
+  const [msg,          setMsg]          = useState<{ text: string; ok: boolean } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -82,7 +84,6 @@ function ApiKeyTab() {
   }
 
   const handleReset = async () => {
-    if (!confirm('Reset your API key? The old key will stop working immediately.')) return
     setResetting(true); setMsg(null)
     try {
       const { data, error } = await HttpHelper.rpc('fn_reset_api_key')
@@ -135,7 +136,7 @@ function ApiKeyTab() {
       {msg && <Alert msg={msg.text} ok={msg.ok} />}
 
       <div>
-        <button onClick={handleReset} disabled={resetting}
+        <button onClick={() => setConfirmReset(true)} disabled={resetting}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl border text-[13px] font-medium transition disabled:opacity-60"
           style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)', background: 'var(--c-hover)' }}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)' }}
@@ -144,6 +145,16 @@ function ApiKeyTab() {
           Reset API key
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmReset}
+        title="Reset API key"
+        message="The old key will stop working immediately. Any integrations using it will need to be updated."
+        confirmLabel="Reset"
+        variant="warning"
+        onConfirm={() => { setConfirmReset(false); handleReset() }}
+        onCancel={() => setConfirmReset(false)}
+      />
     </div>
   )
 }

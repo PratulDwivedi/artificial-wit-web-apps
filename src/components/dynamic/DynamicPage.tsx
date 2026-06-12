@@ -13,6 +13,7 @@ import { DynamicTable } from './DynamicTable'
 import { DynamicReportTable } from './DynamicReportTable'
 import { DynamicCard } from './DynamicCard'
 import { NotificationBadge } from '@/components/common/NotificationBadge'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 
 interface Props {
   routeName: string
@@ -150,8 +151,9 @@ export function DynamicPage({ routeName }: Props) {
   const [isSaving,   setIsSaving]  = useState(false)
   const [saveMsg,    setSaveMsg]   = useState<{ text: string; ok: boolean } | null>(null)
   const [viewTrigger, setViewTrigger] = useState(0)
-  const [deleting,   setDeleting]  = useState(false)
-  const [deleteMsg,  setDeleteMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [deleting,        setDeleting]        = useState(false)
+  const [deleteMsg,       setDeleteMsg]       = useState<{ text: string; ok: boolean } | null>(null)
+  const [pendingDelete,   setPendingDelete]   = useState<string | null>(null)
   // Pre-fetched record data loaded at page level so form + table sections share one RPC call
   const [initialRecordData, setInitialRecordData] = useState<Record<string, unknown> | null>(null)
   const [loadingRecord,     setLoadingRecord]      = useState(!!recordId)
@@ -230,7 +232,6 @@ export function DynamicPage({ routeName }: Props) {
 
   const handleDelete = useCallback(async (bindingName: string) => {
     if (!recordId) return
-    if (!confirm('Are you sure you want to delete this record?')) return
     setDeleting(true); setDeleteMsg(null)
     try {
       const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
@@ -299,7 +300,7 @@ export function DynamicPage({ routeName }: Props) {
               {schema.name}
             </h1>
             {schema.descr && (
-              <p className="text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>{schema.descr}</p>
+              <p className="hidden sm:block text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>{schema.descr}</p>
             )}
           </div>
         </div>
@@ -339,13 +340,14 @@ export function DynamicPage({ routeName }: Props) {
           {/* Delete — only when editing a record that has a delete binding */}
           {showDelete && (
             <button type="button" disabled={deleting}
-              onClick={() => handleDelete(schema.binding_name_delete!)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-medium transition disabled:opacity-60"
+              onClick={() => setPendingDelete(schema.binding_name_delete!)}
+              title={deleting ? 'Deleting…' : 'Delete'}
+              className="flex items-center gap-1.5 px-2 py-2 sm:px-4 rounded-xl border text-[13px] font-medium transition disabled:opacity-60"
               style={{ borderColor: '#fca5a5', color: '#ef4444', background: 'rgba(239,68,68,0.06)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.06)' }}>
               {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-              {deleting ? 'Deleting…' : 'Delete'}
+              <span className="hidden sm:inline">{deleting ? 'Deleting…' : 'Delete'}</span>
             </button>
           )}
 
@@ -353,9 +355,10 @@ export function DynamicPage({ routeName }: Props) {
           {showSave && (
             <button type="button" disabled={isSaving || deleting}
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-4 py-2 btn-primary rounded-xl text-[13px] font-semibold transition disabled:opacity-60">
+              title={isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
+              className="flex items-center gap-1.5 px-2 py-2 sm:px-4 btn-primary rounded-xl text-[13px] font-semibold transition disabled:opacity-60">
               {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-              {isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
+              <span className="hidden sm:inline">{isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}</span>
             </button>
           )}
 
@@ -363,11 +366,13 @@ export function DynamicPage({ routeName }: Props) {
           {showView && (
             <button type="button"
               onClick={() => setViewTrigger(n => n + 1)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border text-[13px] font-medium transition"
+              title="View"
+              className="flex items-center gap-1.5 px-2 py-2 sm:px-4 rounded-xl border text-[13px] font-medium transition"
               style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)', background: 'var(--c-hover)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--c-active)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'var(--c-hover)' }}>
-              <Eye size={13} /> View
+              <Eye size={13} />
+              <span className="hidden sm:inline">View</span>
             </button>
           )}
 
@@ -416,6 +421,16 @@ export function DynamicPage({ routeName }: Props) {
           ))}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete record"
+        message="Are you sure you want to delete this record? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { const b = pendingDelete!; setPendingDelete(null); handleDelete(b) }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }
