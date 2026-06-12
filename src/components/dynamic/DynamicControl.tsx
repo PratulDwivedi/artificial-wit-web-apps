@@ -20,6 +20,7 @@ import { TreeViewSelect } from './TreeViewSelect'
 import { FieldConditionTable } from '@/components/common/FieldConditionTable'
 import { FilePreview } from '@/components/common/FilePreview'
 import { HtmlParser } from '@/components/common/HtmlParser'
+import { RichEditor } from '@/components/common/RichEditor'
 
 ChartJS.register(
   CategoryScale, LinearScale,
@@ -367,7 +368,8 @@ export function DynamicControl({
   const [options,        setOptions]        = useState<DropdownOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [uploading,      setUploading]      = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef       = useRef<HTMLInputElement>(null)
+  const richEditorRef = useRef<HTMLDivElement>(null)
 
   const needsOptions =
     control_type_id === control_types.dropdown ||
@@ -708,15 +710,14 @@ export function DynamicControl({
         )
       }
 
-      // ── HTML editor (basic) ────────────────────────────────────────────────
+      // ── HTML editor ───────────────────────────────────────────────────────
       case control_types.htmlEditor:
         return (
-          <textarea id={ctrlId} value={(value as string) ?? ''}
-            onChange={e => onChange(binding_name, e.target.value)}
-            disabled={isDisabled} required={isRequired}
-            rows={6}
-            placeholder="Enter HTML…"
-            className={`${INPUT_CLASS} resize-y font-mono text-[12px]`} style={INPUT_STYLE} />
+          <RichEditor
+            editorRef={richEditorRef}
+            value={(value as string) ?? ''}
+            onChange={v => onChange(binding_name, v)}
+          />
         )
 
       // ── HTML parser ────────────────────────────────────────────────────────

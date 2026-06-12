@@ -34,6 +34,31 @@ export interface RichEditorProps {
   editorRef: { current: HTMLDivElement | null }
 }
 
+/**
+ * Before loading HTML into contentEditable, neutralize <style> tags by giving
+ * them a non-CSS MIME type so the browser won't apply them to the host page.
+ * The tags remain in the DOM so innerHTML round-trips correctly.
+ */
+function deactivateStyles(html: string): string {
+  if (typeof document === 'undefined') return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('style:not([type])').forEach(el => el.setAttribute('type', 'text/x-noop'))
+  doc.querySelectorAll('script').forEach(el => el.remove())
+  return doc.body.innerHTML
+}
+
+/**
+ * Before calling onChange, undo the neutralization so the value stored
+ * upstream preserves the original <style> tags.
+ */
+function restoreStyles(html: string): string {
+  if (typeof document === 'undefined') return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('style[type="text/x-noop"]').forEach(el => el.removeAttribute('type'))
+  doc.querySelectorAll('script').forEach(el => el.remove())
+  return doc.body.innerHTML
+}
+
 export function RichEditor({ value, onChange, onFocus, editorRef }: RichEditorProps) {
   const [mode, setMode]   = useState<'visual' | 'code'>('visual')
   const codeRef           = useRef<HTMLTextAreaElement>(null)
@@ -43,21 +68,23 @@ export function RichEditor({ value, onChange, onFocus, editorRef }: RichEditorPr
   // Set initial value once; re-sync when value changes externally and editor is not focused
   useEffect(() => {
     if (editorRef.current && (!initializedRef.current || !isFocusedRef.current)) {
-      editorRef.current.innerHTML = value
+      editorRef.current.innerHTML = deactivateStyles(value)
       initializedRef.current = true
     }
   }, [value, editorRef])
 
   const syncToParent = useCallback(() => {
-    if (editorRef.current) onChange(editorRef.current.innerHTML)
+    if (editorRef.current) onChange(restoreStyles(editorRef.current.innerHTML))
   }, [editorRef, onChange])
 
   function switchMode(next: 'visual' | 'code') {
     if (next === 'code' && editorRef.current && codeRef.current) {
-      codeRef.current.value = editorRef.current.innerHTML
+      // Show the real HTML (with <style>) in the code textarea
+      codeRef.current.value = restoreStyles(editorRef.current.innerHTML)
     } else if (next === 'visual' && codeRef.current && editorRef.current) {
-      editorRef.current.innerHTML = codeRef.current.value
-      onChange(codeRef.current.value)
+      const restored = restoreStyles(codeRef.current.value)
+      editorRef.current.innerHTML = deactivateStyles(restored)
+      onChange(restored)
     }
     setMode(next)
   }
@@ -130,7 +157,7 @@ export function RichEditor({ value, onChange, onFocus, editorRef }: RichEditorPr
         onInput={syncToParent}
         onFocus={() => { isFocusedRef.current = true; onFocus?.() }}
         onBlur={() => { isFocusedRef.current = false; syncToParent() }}
-        className={`min-h-[130px] p-3 text-[13px] outline-none leading-relaxed ${mode !== 'visual' ? 'hidden' : ''}`}
+        className={`rich-editor-content min-h-[130px] p-3 text-[13px] outline-none leading-relaxed ${mode !== 'visual' ? 'hidden' : ''}`}
         style={{ background: 'var(--c-panel)', color: 'var(--c-t1)' }}
       />
 
