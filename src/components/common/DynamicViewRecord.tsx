@@ -133,7 +133,7 @@ export function DynamicViewRecord({ row, controls, title, onClose }: Props) {
 
   // Filter out action-only controls (hyperlinks already included above as values, skip hyperlinkRow)
   const { control_types } = APP_CONSTANTS
-  const SKIP = new Set([control_types.hyperlinkRow, control_types.submit, control_types.addTableRow, control_types.deleteTableRow])
+  const SKIP = new Set<number>([control_types.hyperlinkRow, control_types.submit, control_types.addTableRow, control_types.deleteTableRow])
   const fields = controls.filter(c => !SKIP.has(c.control_type_id))
 
   return (
