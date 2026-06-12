@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { HttpHelper } from '@/lib/http'
+import { resolveStartupRoute } from '@/lib/store'
 import Image from 'next/image'
 import { Loader2, Eye, EyeOff, MessageCircle, Library, Plug, Settings2, File } from 'lucide-react'
 
@@ -32,8 +33,8 @@ export default function LoginPage() {
     // Fetch profile to resolve the startup route configured for this user
     try {
       const { data } = await HttpHelper.rpc('fn_get_profile')
-      const env   = data as unknown as { is_success: boolean; data: Array<{ data?: { route_name_web?: string } }> }
-      const route = env?.data?.[0]?.data?.route_name_web
+      const env   = data as unknown as { is_success: boolean; data: Array<{ data?: { route_name_web?: string | Record<string, string> } }> }
+      const route = resolveStartupRoute(env?.data?.[0]?.data?.route_name_web)
       router.push(route ? `/${route}` : '/')
     } catch {
       router.push('/')

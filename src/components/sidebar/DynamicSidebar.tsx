@@ -362,7 +362,10 @@ export function DynamicSidebar() {
   const { sidebarOpen, setSidebarOpen } = useAppStore()
 
   useEffect(() => {
-    HttpHelper.rpc<{ is_success: boolean; data: PageItem[] }>('fn_get_user_pages', { p_platform_id: 21 })
+    HttpHelper.rpc<{ is_success: boolean; data: PageItem[] }>('fn_get_user_pages', {
+      p_platform_id: 21,
+      p_product_name: process.env.NEXT_PUBLIC_PRODUCT_NAME,
+    })
       .then(({ data }) => {
         const env = data as unknown as { is_success: boolean; data: PageItem[] }
         if (env?.is_success) setPages(env.data ?? [])

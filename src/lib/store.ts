@@ -1,6 +1,17 @@
 'use client'
 import { create } from 'zustand'
 
+/** Pick the startup route for the current product from route_name_web.
+ *  Handles both the legacy string shape and the new { apps, admin, … } object shape. */
+export function resolveStartupRoute(
+  routeNameWeb: string | Record<string, string> | null | undefined
+): string | null {
+  if (!routeNameWeb) return null
+  if (typeof routeNameWeb === 'string') return routeNameWeb
+  const product = process.env.NEXT_PUBLIC_PRODUCT_NAME
+  return (product ? routeNameWeb[product] : null) ?? Object.values(routeNameWeb)[0] ?? null
+}
+
 
 export interface ProfileData {
   id: number
@@ -17,7 +28,7 @@ export interface ProfileData {
   }
   data: {
     profile_pic?: string | null
-    route_name_web?: string | null
+    route_name_web?: string | Record<string, string> | null
     route_name_mobile?: string | null
     is_admin?: boolean
     currency?: string
@@ -82,7 +93,7 @@ export const useAppStore = create<AppState>((set) => ({
     profilePic:    p.data?.profile_pic ?? null,
     tenantName:    p.tenant?.name ?? null,
     tenantLogoUrl: p.tenant?.data?.logo_url ?? null,
-    startupRoute:  p.data?.route_name_web ?? null,
+    startupRoute:  resolveStartupRoute(p.data?.route_name_web),
     canEditMode:   p.data?.show_editor === true,
   }),
 }))

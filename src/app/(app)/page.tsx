@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
+import { resolveStartupRoute } from '@/lib/store'
 import type { ProfileData } from '@/lib/store'
 
 interface Envelope {
@@ -17,8 +18,8 @@ export default function HomePage() {
   useEffect(() => {
     HttpHelper.rpc('fn_get_profile')
       .then(({ data }) => {
-        const env  = data as unknown as Envelope
-        const route = env?.data?.[0]?.data?.route_name_web
+        const env   = data as unknown as Envelope
+        const route = resolveStartupRoute(env?.data?.[0]?.data?.route_name_web)
         router.replace(route ? `/${route}` : '/dashboard')
       })
       .catch(() => {
