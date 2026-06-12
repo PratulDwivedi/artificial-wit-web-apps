@@ -222,11 +222,13 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
   function colWidth(col: typeof columns[number]): number {
     const explicit = col.data?.width as number | undefined
     if (explicit) return explicit
-    // Action buttons and hidden columns get a compact default; data columns get 4
     const isAction = ACTION_TYPES.has(col.control_type_id)
     const isHidden = col.display_mode_id === control_display_modes.none_hidden
     return (isAction || isHidden) ? 1 : 4
   }
+  // pixel bounds for each data column
+  function colMinPx(col: typeof columns[number]): number { return colWidth(col) * 40 + 60 }
+  function colMaxPx(col: typeof columns[number]): number { return Math.min(320, colWidth(col) * 60 + 80) }
   const totalColWidth = regularTableCols.reduce((sum, col) => sum + colWidth(col), 0) + iconTableCols.length
 
   // Section-level binding_name takes priority; fall back to page-level binding_name_get
@@ -433,15 +435,15 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         ) : processed.length === 0 ? (
           <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>No records match your search</p>
         ) : (
-          <table className="w-full text-[12px] border-collapse table-fixed">
+          <table className="w-max min-w-full text-[12px] border-collapse">
             <colgroup>
-              <col style={{ width: '44px' }} />
-              {hasRowSelect && <col style={{ width: '40px' }} />}
+              <col style={{ width: '44px', minWidth: '44px' }} />
+              {hasRowSelect && <col style={{ width: '40px', minWidth: '40px' }} />}
               {regularTableCols.map(col => (
-                <col key={col.id} style={{ width: `${(colWidth(col) / totalColWidth) * 100}%` }} />
+                <col key={col.id} style={{ minWidth: `${colMinPx(col)}px`, maxWidth: `${colMaxPx(col)}px`, width: `${colMinPx(col)}px` }} />
               ))}
               {iconTableCols.length > 0 && (
-                <col style={{ width: `${(iconTableCols.length / totalColWidth) * 100}%` }} />
+                <col style={{ width: `${Math.max(44, iconTableCols.length * 36)}px`, minWidth: `${Math.max(44, iconTableCols.length * 36)}px` }} />
               )}
             </colgroup>
             <thead>
@@ -475,15 +477,16 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                   const isHidden = col.display_mode_id === control_display_modes.none_hidden
                   return (
                     <th key={col.id}
-                      className="px-3 py-1 text-left font-semibold whitespace-nowrap"
-                      style={{ color: 'var(--c-t3)' }}>
-                      <span className="inline-flex items-center gap-1">
+                      className="px-3 py-1 text-left font-semibold overflow-hidden"
+                      style={{ color: 'var(--c-t3)', maxWidth: `${colMaxPx(col)}px` }}>
+                      <div className="flex items-center gap-1 min-w-0">
                         <button type="button"
                           onClick={() => handleSort(col.binding_name)}
-                          className="inline-flex items-center gap-1 hover:opacity-80 transition select-none">
-                          {col.name}
+                          className="inline-flex items-center gap-1 hover:opacity-80 transition select-none min-w-0"
+                          title={col.name}>
+                          <span className="truncate">{col.name}</span>
                           {isHidden && (
-                            <span className="text-[9px] font-normal px-1 py-0.5 rounded"
+                            <span className="shrink-0 text-[9px] font-normal px-1 py-0.5 rounded"
                               style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
                               Hidden
                             </span>
@@ -493,12 +496,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                         {editMode && (
                           <button type="button"
                             onClick={() => router.push(`/page_section_control?id=${col.id}`)}
-                            className="p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
+                            className="shrink-0 p-0.5 rounded transition opacity-40 hover:opacity-100 hover:bg-[var(--c-hover)]"
                             title="Edit control">
                             <Pencil size={10} />
                           </button>
                         )}
-                      </span>
+                      </div>
                     </th>
                   )
                 })}
@@ -527,7 +530,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                   <th style={{ width: 44 }} />
                   {hasRowSelect && <th style={{ width: 40 }} />}
                   {regularTableCols.map(col => (
-                    <th key={col.id} className="px-2 py-1.5 font-normal">
+                    <th key={col.id} className="px-2 py-1.5 font-normal overflow-hidden"
+                      style={{ maxWidth: `${colMaxPx(col)}px` }}>
                       <div className="relative">
                         <input
                           type="text"
@@ -572,13 +576,17 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                     )}
                     {regularTableCols.map(col => {
                       const val = resolvePath(row, col.binding_name)
+                      const str = cellStr(val)
                       return (
-                        <td key={col.id} className="px-3 py-0.5" style={{ color: 'var(--c-t2)' }}>
-                          {val === null || val === undefined
-                            ? <span style={{ color: 'var(--c-t5)' }}>—</span>
-                            : typeof val === 'boolean'
-                            ? <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
-                            : <>{String(val)}</>}
+                        <td key={col.id} className="px-3 py-0.5 overflow-hidden"
+                          style={{ color: 'var(--c-t2)', maxWidth: `${colMaxPx(col)}px` }}>
+                          <div className="truncate" title={str || undefined}>
+                            {val === null || val === undefined
+                              ? <span style={{ color: 'var(--c-t5)' }}>—</span>
+                              : typeof val === 'boolean'
+                              ? <span style={{ color: val ? '#16a34a' : 'var(--c-t5)' }}>{val ? '✓' : '—'}</span>
+                              : str}
+                          </div>
                         </td>
                       )
                     })}
