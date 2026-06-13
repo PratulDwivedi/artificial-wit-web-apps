@@ -136,7 +136,7 @@ export class HttpHelper {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined))),
       })
     }
 

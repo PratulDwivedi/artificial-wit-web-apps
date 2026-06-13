@@ -13,6 +13,7 @@ import { ModalShell } from '@/components/common/ModalShell'
 
 interface ProfileData {
   user_name:  string
+  full_name?: string | null
   email:      string
   data: {
     mobile_no?:       number | string | null
@@ -131,6 +132,9 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
   ({ profile, inModal }, ref) => {
     const { setProfilePic: setStorePic } = useAppStore()
 
+    const [fullName,       setFullName]       = useState(profile.full_name ?? '')
+    const [userName,       setUserName]       = useState(profile.user_name ?? '')
+    const [email,          setEmail]          = useState(profile.email ?? '')
     const [mobileNo,       setMobileNo]       = useState(String(profile.data?.mobile_no ?? ''))
     const [language,       setLanguage]       = useState(profile.data?.language ?? 'EN')
     const [currency,       setCurrency]       = useState(profile.data?.currency ?? 'USD')
@@ -169,7 +173,10 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
     const handleSave = useCallback(async () => {
       setSaving(true); setMsg(null)
       try {
-        const { data, error } = await HttpHelper.rpc('fn_update_profile', {
+        const { data, error } = await HttpHelper.rpc('fn_save_user_profile', {
+          p_full_name: fullName  || null,
+          p_user_name: userName  || null,
+          p_email:     email     || null,
           p_data: {
             mobile_no:       mobileNo ? Number(mobileNo) : null,
             datetime_format: datetimeFormat || null,
@@ -187,7 +194,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
       } finally {
         setSaving(false)
       }
-    }, [mobileNo, datetimeFormat, language, currency, currencySymbol, profilePic])
+    }, [fullName, userName, email, mobileNo, datetimeFormat, language, currency, currencySymbol, profilePic])
 
     useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave])
 
@@ -204,7 +211,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
         const url = json.url ?? null
         setProfilePic(url)
         setStorePic(url)
-        await HttpHelper.rpc('fn_update_profile', { p_data: { profile_pic: url } })
+        await HttpHelper.rpc('fn_save_user_profile', { p_data: { profile_pic: url } })
       } catch (err) {
         setMsg({ text: err instanceof Error ? err.message : 'Upload failed', ok: false })
       } finally {
@@ -252,34 +259,55 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
+                style={{ color: 'var(--c-t4)' }}>Full name</label>
+              <input value={fullName ?? ''} onChange={e => setFullName(e.target.value)}
+                placeholder="e.g. John Smith" className={inputCls} style={inputStyle} />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
+                style={{ color: 'var(--c-t4)' }}>Username</label>
+              <input value={userName ?? ''} onChange={e => setUserName(e.target.value)}
+                placeholder="e.g. jsmith" className={inputCls} style={inputStyle} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
+                style={{ color: 'var(--c-t4)' }}>Email</label>
+              <input type="email" value={email ?? ''} onChange={e => setEmail(e.target.value)}
+                placeholder="e.g. john@example.com" className={inputCls} style={inputStyle} />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
                 style={{ color: 'var(--c-t4)' }}>Mobile number</label>
               <input value={mobileNo} onChange={e => setMobileNo(e.target.value)}
                 placeholder="e.g. 9999999999" className={inputCls} style={inputStyle} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
                 style={{ color: 'var(--c-t4)' }}>Date &amp; time format</label>
               <SearchSelect value={datetimeFormat} onChange={setDatetimeFormat}
                 options={dtFormats.map(f => ({ value: f.code, label: f.name }))} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
                 style={{ color: 'var(--c-t4)' }}>Language</label>
               <SearchSelect value={language} onChange={setLanguage}
                 options={languages.map(l => ({ value: l.code, label: l.name }))} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
                 style={{ color: 'var(--c-t4)' }}>Currency</label>
               <SearchSelect value={currency} onChange={handleCurrencyChange}
                 options={currencies.map(c => ({ value: c.code, label: `${c.code} (${c.data?.symbol ?? ''}) — ${c.name}` }))} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
                 style={{ color: 'var(--c-t4)' }}>Currency symbol</label>
