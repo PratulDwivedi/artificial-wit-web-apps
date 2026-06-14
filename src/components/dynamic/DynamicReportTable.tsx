@@ -7,7 +7,7 @@ import {
   ChevronUp, ChevronsUpDown,
   Search, Filter, Download, X,
   ChevronLeft, FileSpreadsheet,
-  Pencil, Plus,
+  Pencil, Plus, Trash2,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { HttpHelper } from '@/lib/http'
@@ -19,6 +19,7 @@ import AccessControl from '@/components/common/AccessControl'
 import type { AccessControlValue } from '@/components/common/AccessControl'
 import { ShieldCheck, Globe, Lock } from 'lucide-react'
 import { DynamicViewRecord } from '@/components/common/DynamicViewRecord'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 
 type Row = Record<string, unknown>
 type SortDir = 'asc' | 'desc'
@@ -43,6 +44,13 @@ function buildUrl(template: string, row: Row): string {
 function cellStr(val: unknown): string {
   if (val == null) return ''
   if (typeof val === 'boolean') return val ? 'true' : 'false'
+  if (Array.isArray(val)) {
+    return val.map(item =>
+      item != null && typeof item === 'object' && 'name' in item
+        ? String((item as Record<string, unknown>).name)
+        : String(item)
+    ).join(', ')
+  }
   return String(val)
 }
 
@@ -188,12 +196,15 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
 
   const [acOpen,       setAcOpen]       = useState<{ row: Row; col: PageSection['controls'][number] } | null>(null)
   const [viewRow,      setViewRow]      = useState<Row | null>(null)
+  const [deleteRow,    setDeleteRow]    = useState<{ row: Row; bindingName: string } | null>(null)
+  const [deleting,     setDeleting]     = useState(false)
+  const [refetchKey,   setRefetchKey]   = useState(0)
 
   const allControls      = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
   const columns          = allControls.filter(c =>
     c.display_mode_id !== control_display_modes.none_hidden || editMode
   )
-  const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow])
+  const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow, control_types.deleteTableRow])
 
   // hyperlinkRow (33) controls → toolbar bulk-action buttons, never table columns
   const hyperlinkRowCols = columns.filter(c => c.control_type_id === control_types.hyperlinkRow)
@@ -246,7 +257,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
       })
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchRpc, expanded, viewTrigger])
+  }, [fetchRpc, expanded, viewTrigger, refetchKey])
 
   // Reset to page 1 whenever filters / sort / page size change
   useEffect(() => { setPage(1) }, [search, colFilters, sortKey, sortDir, pageSize])
@@ -597,6 +608,22 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                           </td>
                         )
                       }
+                      if (col.control_type_id === control_types.deleteTableRow) {
+                        return (
+                          <td key={col.id} className="text-center" style={{ width: 32, padding: 0 }}
+                            onClick={e => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteRow({ row, bindingName: col.binding_name })}
+                              className="inline-flex items-center justify-center p-1 rounded-lg transition"
+                              style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}
+                              onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
+                              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        )
+                      }
                       if (ACTION_TYPES.has(col.control_type_id)) {
                         return (
                           <td key={col.id} className="text-center" style={{ width: 32, padding: 0 }}
@@ -669,6 +696,29 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
         </div>
       )}
       {body}
+      <ConfirmDialog
+        open={!!deleteRow}
+        title="Delete record"
+        message={`Delete "${String(deleteRow?.row.full_name ?? deleteRow?.row.name ?? deleteRow?.row.email ?? `record #${deleteRow?.row.id}`)}"? This cannot be undone.`}
+        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        variant="danger"
+        onConfirm={() => {
+          if (!deleteRow) return
+          setDeleting(true)
+          HttpHelper.rpc(deleteRow.bindingName, { p_id: Number(resolvePath(deleteRow.row, rowKeyField)) })
+            .then(({ data }) => {
+              const env = data as { is_success?: boolean } | null
+              if (env?.is_success) {
+                setRows(prev => prev.filter(r =>
+                  String(resolvePath(r, rowKeyField)) !== String(resolvePath(deleteRow.row, rowKeyField))
+                ))
+              }
+              setDeleteRow(null)
+            })
+            .finally(() => setDeleting(false))
+        }}
+        onCancel={() => setDeleteRow(null)}
+      />
       {acOpen && (
         <AccessControl
           resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}
@@ -677,13 +727,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
           pageId={schema.id}
           accessControl={resolvePath(acOpen.row, acOpen.col.binding_name) as { scope?: string; roles?: number[] } | undefined}
           onClose={() => setAcOpen(null)}
-          onSaved={(val: AccessControlValue) => {
-            setRows(prev => prev.map(r =>
-              String(resolvePath(r, 'id')) === String(resolvePath(acOpen.row, 'id'))
-                ? { ...r, [acOpen.col.binding_name]: val }
-                : r
-            ))
+          onSaved={() => {
             setAcOpen(null)
+            setRefetchKey(k => k + 1)
           }}
         />
       )}
@@ -732,6 +778,29 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
       </div>
       {expanded && body}
 
+      <ConfirmDialog
+        open={!!deleteRow}
+        title="Delete record"
+        message={`Delete "${String(deleteRow?.row.full_name ?? deleteRow?.row.name ?? deleteRow?.row.email ?? `record #${deleteRow?.row.id}`)}"? This cannot be undone.`}
+        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        variant="danger"
+        onConfirm={() => {
+          if (!deleteRow) return
+          setDeleting(true)
+          HttpHelper.rpc(deleteRow.bindingName, { p_id: Number(resolvePath(deleteRow.row, rowKeyField)) })
+            .then(({ data }) => {
+              const env = data as { is_success?: boolean } | null
+              if (env?.is_success) {
+                setRows(prev => prev.filter(r =>
+                  String(resolvePath(r, rowKeyField)) !== String(resolvePath(deleteRow.row, rowKeyField))
+                ))
+              }
+              setDeleteRow(null)
+            })
+            .finally(() => setDeleting(false))
+        }}
+        onCancel={() => setDeleteRow(null)}
+      />
       {acOpen && (
         <AccessControl
           resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}
@@ -740,13 +809,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
           pageId={schema.id}
           accessControl={resolvePath(acOpen.row, acOpen.col.binding_name) as { scope?: string; roles?: number[] } | undefined}
           onClose={() => setAcOpen(null)}
-          onSaved={(val: AccessControlValue) => {
-            setRows(prev => prev.map(r =>
-              String(resolvePath(r, 'id')) === String(resolvePath(acOpen.row, 'id'))
-                ? { ...r, [acOpen.col.binding_name]: val }
-                : r
-            ))
+          onSaved={() => {
             setAcOpen(null)
+            setRefetchKey(k => k + 1)
           }}
         />
       )}

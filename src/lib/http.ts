@@ -192,6 +192,32 @@ export class HttpHelper {
     rpcCache.delete(rpcKey(fn, params))
   }
 
+  static async post<T = unknown>(
+    path: string,
+    body: Record<string, unknown>
+  ): Promise<{ data: T | null; error: string | null }> {
+    const token = HttpHelper.getToken()
+    let res: Response
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      })
+    } catch (err) {
+      return { data: null, error: (err as Error).message }
+    }
+    let json: Record<string, unknown> = {}
+    try { json = await res.json() } catch { /* ignore */ }
+    if (!res.ok) {
+      return { data: null, error: (json.message ?? json.error ?? `HTTP ${res.status}`) as string }
+    }
+    return { data: json as T, error: null }
+  }
+
   static async forgotPassword(email: string): Promise<{ error: string | null }> {
     const redirectTo = `${process.env.NEXT_PUBLIC_AW_APP_BASE_URL}/reset-password`
     let res: Response

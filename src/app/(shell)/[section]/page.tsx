@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import { ProfilePage } from '@/components/profile/ProfilePage'
 import { TenantPage } from '@/components/profile/TenantPage'
+import { UserPage } from '@/components/profile/UserPage'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { DynamicPage } from '@/components/dynamic/DynamicPage'
 import { TemplatePage } from '@/components/template/TemplatePage'
@@ -11,6 +12,7 @@ function resolveLocalPage(section: string): React.ReactNode | null {
   switch (section) {
     case 'profile':       return <ProfilePage />
     case 'tenant':        return <TenantPage />
+    case 'user':          return <UserPage />
     case 'settings':      return <SettingsPage />
     case 'template':      return <TemplatePage />
     case 'code_template': return <CodeTemplateShell />
