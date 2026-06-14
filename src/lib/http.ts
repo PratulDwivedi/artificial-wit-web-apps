@@ -191,4 +191,46 @@ export class HttpHelper {
   static rpcInvalidate(fn: string, params: Record<string, unknown> = {}): void {
     rpcCache.delete(rpcKey(fn, params))
   }
+
+  static async forgotPassword(email: string): Promise<{ error: string | null }> {
+    const redirectTo = `${process.env.NEXT_PUBLIC_AW_APP_BASE_URL}/reset-password`
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/auth/forgot_password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, redirect_to: redirectTo }),
+      })
+    } catch (err) {
+      return { error: (err as Error).message }
+    }
+    if (!res.ok) {
+      let json: Record<string, unknown> = {}
+      try { json = await res.json() } catch { /* ignore */ }
+      return { error: (json.message ?? json.error ?? `HTTP ${res.status}`) as string }
+    }
+    return { error: null }
+  }
+
+  static async resetPassword(accessToken: string, password: string): Promise<{ error: string | null }> {
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/auth/reset_password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ password }),
+      })
+    } catch (err) {
+      return { error: (err as Error).message }
+    }
+    if (!res.ok) {
+      let json: Record<string, unknown> = {}
+      try { json = await res.json() } catch { /* ignore */ }
+      return { error: (json.message ?? json.error ?? `HTTP ${res.status}`) as string }
+    }
+    return { error: null }
+  }
 }
