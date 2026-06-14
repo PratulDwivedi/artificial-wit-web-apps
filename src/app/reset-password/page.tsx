@@ -103,10 +103,10 @@ export default function ResetPasswordPage() {
               <p className="text-[14px] leading-relaxed mb-8" style={{ color: 'var(--c-t4)' }}>
                 Your password has been reset. You can now sign in with your new password.
               </p>
-              <button type="button" onClick={() => router.push('/login')}
+              {/* <button type="button" onClick={() => router.push('/login')}
                 className="btn-primary w-full py-3.5 rounded-xl text-[15px] font-semibold transition-opacity">
                 Sign In
-              </button>
+              </button> */}
             </div>
           )}
 
