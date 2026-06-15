@@ -77,7 +77,7 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
   )
 
   const visibleControls = [...(section.controls ?? [])]
-    .filter(c => c.display_mode_id !== control_display_modes.none_hidden)
+    .filter(c => c.display_mode_id !== control_display_modes.none_hidden || editMode)
     .sort((a, b) => a.display_order - b.display_order)
 
   useEffect(() => {
@@ -92,6 +92,15 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
       })
       .finally(() => setLoading(false))
   }, [recordId, schema.binding_name_get])
+
+  // Update form data when a different record is selected in-page (initialData reference changes)
+  const prevInitialDataRef = useRef(initialData)
+  useEffect(() => {
+    if (initialData === prevInitialDataRef.current) return
+    prevInitialDataRef.current = initialData
+    if (!initialData) { setFormData({}); return }
+    setFormData(initialData)
+  }, [initialData])
 
   // Keep a stable ref so the effect below doesn't re-fire when the callback
   // reference changes (e.g. when DynamicPage re-renders after sharedData update)

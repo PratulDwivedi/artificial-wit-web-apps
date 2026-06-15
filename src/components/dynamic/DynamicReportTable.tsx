@@ -25,9 +25,10 @@ type Row = Record<string, unknown>
 type SortDir = 'asc' | 'desc'
 
 interface Props {
-  section:      PageSection
-  schema:       PageSchema
-  viewTrigger?: number
+  section:          PageSection
+  schema:           PageSchema
+  viewTrigger?:     number
+  onRecordSelect?:  (id: string, url: string) => void
 }
 
 function resolvePath(row: Row, path: string): unknown {
@@ -56,7 +57,12 @@ function cellStr(val: unknown): string {
 
 // ── Action cell ───────────────────────────────────────────────────────────────
 
-function ActionCell({ control, row }: { control: PageSection['controls'][number]; row: Row }) {
+function ActionCell({ control, row, onRecordSelect, routeName }: {
+  control: PageSection['controls'][number]
+  row: Row
+  onRecordSelect?: (id: string, url: string) => void
+  routeName?: string
+}) {
   const router   = useRouter()
   const template = (control.data?.default_value as string) ?? '#'
   const href     = buildUrl(template, row)
@@ -64,10 +70,23 @@ function ActionCell({ control, row }: { control: PageSection['controls'][number]
   const color    = (control.data?.item_color as string) ?? 'var(--c-primary)'
   const Icon     = resolveIcon(iconName)
 
+  function handleClick() {
+    if (onRecordSelect && routeName) {
+      try {
+        const url = new URL(href, window.location.origin)
+        if (url.pathname === `/${routeName}`) {
+          const id = url.searchParams.get('id')
+          if (id) { onRecordSelect(id, href); return }
+        }
+      } catch { /* invalid URL — fall through to router.push */ }
+    }
+    router.push(href)
+  }
+
   return (
     <button
       type="button"
-      onClick={() => router.push(href)}
+      onClick={handleClick}
       title={control.name}
       className="inline-flex items-center justify-center p-1 rounded-lg transition"
       style={{ color, background: `${color}10` }}
@@ -171,7 +190,7 @@ function Pagination({ page, totalPages, total, pageSize, onPage, onPageSize }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) {
+export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordSelect }: Props) {
   const { section_display_modes, control_display_modes, control_types } = APP_CONSTANTS
   const router   = useRouter()
   const editMode = useAppStore(s => s.editMode)
@@ -628,7 +647,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0 }: Props) 
                         return (
                           <td key={col.id} className="text-center" style={{ width: 32, padding: 0 }}
                             onClick={e => e.stopPropagation()}>
-                            <ActionCell control={col} row={row} />
+                            <ActionCell control={col} row={row} onRecordSelect={onRecordSelect} routeName={schema.route_name} />
                           </td>
                         )
                       }

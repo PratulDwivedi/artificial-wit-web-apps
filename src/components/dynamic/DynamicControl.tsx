@@ -420,7 +420,33 @@ export function DynamicControl({
     }
   }
 
-  if (isHidden) return null
+  if (isHidden) {
+    if (!editMode) return null
+    return (
+      <div className="col-span-1">
+        <label className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide mb-1.5"
+          style={{ color: 'var(--c-t4)' }}>
+          {name}
+          <span className="text-[9px] font-normal px-1 py-0.5 rounded"
+            style={{ background: 'rgba(107,114,128,0.12)', color: 'var(--c-t4)' }}>
+            Hidden
+          </span>
+          <button type="button"
+            onClick={e => { e.preventDefault(); router.push(`/page_section_control?id=${id}`) }}
+            className="ml-auto p-0.5 rounded transition hover:bg-[var(--c-hover)] opacity-50 hover:opacity-100"
+            title="Edit control">
+            <Pencil size={10} />
+          </button>
+        </label>
+        <div className="rounded-xl border px-3 py-2 text-[13px]"
+          style={{ borderColor: 'var(--c-border-strong)', background: 'var(--c-hover)', color: 'var(--c-t2)' }}>
+          {value != null && value !== ''
+            ? String(value)
+            : <span style={{ color: 'var(--c-t5)' }}>—</span>}
+        </div>
+      </div>
+    )
+  }
 
   // Grid span: data.width >= 12 → full width (col-span-2), else single col
   const colSpan = (data?.width as number ?? 6) >= 12 ? 'col-span-2' : 'col-span-1'

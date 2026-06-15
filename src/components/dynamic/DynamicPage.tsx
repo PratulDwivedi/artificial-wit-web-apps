@@ -142,8 +142,9 @@ function buildPayload(
 }
 
 export function DynamicPage({ routeName }: Props) {
-  const searchParams = useSearchParams()
-  const recordId     = searchParams.get('id') ?? undefined
+  const searchParams   = useSearchParams()
+  const urlRecordId    = searchParams.get('id') ?? undefined
+  const [activeRecordId, setActiveRecordId] = useState<string | undefined>(urlRecordId)
 
   const [schema,     setSchema]    = useState<PageSchema | null>(null)
   const [loading,    setLoading]   = useState(true)
@@ -156,7 +157,7 @@ export function DynamicPage({ routeName }: Props) {
   const [pendingDelete,   setPendingDelete]   = useState<string | null>(null)
   // Pre-fetched record data loaded at page level so form + table sections share one RPC call
   const [initialRecordData, setInitialRecordData] = useState<Record<string, unknown> | null>(null)
-  const [loadingRecord,     setLoadingRecord]      = useState(!!recordId)
+  const [loadingRecord,     setLoadingRecord]      = useState(!!urlRecordId)
 
   // Accumulates the latest data from each section (keyed by section.id)
   const sectionDataRef = useRef(new Map<number, unknown>())
@@ -181,18 +182,25 @@ export function DynamicPage({ routeName }: Props) {
       .finally(() => setLoading(false))
   }, [routeName])
 
-  // Load the record data once at page level so DynamicForm and DynamicTable share a single RPC call
+  // Sync activeRecordId with browser back/forward navigation
   useEffect(() => {
-    if (!recordId || !schema?.binding_name_get) { setLoadingRecord(false); return }
-    setLoadingRecord(true)
-    const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+    const onPop = () => setActiveRecordId(new URLSearchParams(window.location.search).get('id') ?? undefined)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Load the record at page level so DynamicForm and DynamicTable share one RPC call.
+  // loadingRecord is only true on the initial URL load — in-page record changes are silent.
+  useEffect(() => {
+    if (!activeRecordId || !schema?.binding_name_get) { setLoadingRecord(false); return }
+    const ids = activeRecordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
     HttpHelper.rpc(schema.binding_name_get, { p_id: ids.length === 1 ? ids[0] : ids })
       .then(({ data }) => {
         const env = data as unknown as RpcEnvelope<Record<string, unknown>[]>
         setInitialRecordData(env?.is_success && env.data?.[0] ? env.data[0] : {})
       })
       .finally(() => setLoadingRecord(false))
-  }, [schema?.binding_name_get, recordId])
+  }, [schema?.binding_name_get, activeRecordId])
 
   // Called by each section whenever its data changes
   const handleSectionData = useCallback((sectionId: number, data: unknown) => {
@@ -215,7 +223,7 @@ export function DynamicPage({ routeName }: Props) {
       const payload = buildPayload(
         schema,
         sectionDataRef.current,
-        recordId,
+        activeRecordId,
         APP_CONSTANTS.child_display_modes,
       )
       const { data, error } = await HttpHelper.rpc(schema.binding_name_post, payload)
@@ -223,18 +231,25 @@ export function DynamicPage({ routeName }: Props) {
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Save failed')
       setSaveMsg({ text: env.message ?? 'Saved successfully', ok: true })
+      if (schema.data?.is_clear_page) {
+        window.history.pushState(null, '', window.location.pathname)
+        setActiveRecordId(undefined)
+        setInitialRecordData(null)
+        sectionDataRef.current = new Map()
+        setSharedData({})
+      }
     } catch (e) {
       setSaveMsg({ text: e instanceof Error ? e.message : 'Save failed', ok: false })
     } finally {
       setIsSaving(false)
     }
-  }, [schema, recordId])
+  }, [schema, activeRecordId])
 
   const handleDelete = useCallback(async (bindingName: string) => {
-    if (!recordId) return
+    if (!activeRecordId) return
     setDeleting(true); setDeleteMsg(null)
     try {
-      const ids = recordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      const ids = activeRecordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
       const { data, error: err } = await HttpHelper.rpc(bindingName, { p_id: ids.length === 1 ? ids[0] : ids })
       if (err) throw new Error(err)
       const env = data as unknown as RpcEnvelope
@@ -246,7 +261,12 @@ export function DynamicPage({ routeName }: Props) {
     } finally {
       setDeleting(false)
     }
-  }, [recordId, router])
+  }, [activeRecordId, router])
+
+  const handleRecordSelect = useCallback((id: string, url: string) => {
+    window.history.pushState(null, '', url)
+    setActiveRecordId(id)
+  }, [])
 
   if (loading || loadingRecord) return (
     <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--c-base)' }}>
@@ -264,7 +284,7 @@ export function DynamicPage({ routeName }: Props) {
 
   if (!schema) return null
 
-  const isEditing  = !!recordId
+  const isEditing  = !!activeRecordId
   const showSave   = !!schema.binding_name_post
   const showView   = !!schema.binding_name_get && !schema.binding_name_post
   const showDelete = isEditing && !!schema.binding_name_delete
@@ -411,11 +431,12 @@ export function DynamicPage({ routeName }: Props) {
               <SectionRenderer
                 section={section}
                 schema={schema}
-                recordId={recordId}
+                recordId={activeRecordId}
                 viewTrigger={showView ? viewTrigger : undefined}
                 onDataChange={handleSectionData}
                 sharedData={sharedData}
                 initialData={initialRecordData ?? undefined}
+                onRecordSelect={handleRecordSelect}
               />
             </div>
           ))}
@@ -445,6 +466,7 @@ function SectionRenderer({
   onDataChange,
   sharedData,
   initialData,
+  onRecordSelect,
 }: {
   section: PageSection
   schema: PageSchema
@@ -453,6 +475,7 @@ function SectionRenderer({
   onDataChange: (sectionId: number, data: unknown) => void
   sharedData?: Record<string, unknown>
   initialData?: Record<string, unknown>
+  onRecordSelect?: (id: string, url: string) => void
 }) {
   const { child_display_modes } = APP_CONSTANTS
 
@@ -472,7 +495,7 @@ function SectionRenderer({
     case child_display_modes.dataTableReport:
     case child_display_modes.dataTableReportAdvance:
       if (section.binding_name || schema.binding_name_get) {
-        return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} />
+        return <DynamicReportTable section={section} schema={schema} viewTrigger={viewTrigger} onRecordSelect={onRecordSelect} />
       }
       return (
         <DynamicTable
