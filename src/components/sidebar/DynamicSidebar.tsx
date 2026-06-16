@@ -240,7 +240,7 @@ function UserMenu() {
 
   // Profile is loaded centrally by AppBootstrap; store values are read here.
 
-  const signOut = () => { HttpHelper.clearToken(); router.push('/login') }
+  const signOut = () => { HttpHelper.logout() }
 
   return (
     <div ref={ref} className="relative px-2 pb-1">

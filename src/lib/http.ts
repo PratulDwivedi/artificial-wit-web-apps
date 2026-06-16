@@ -54,7 +54,10 @@ export class HttpHelper {
   static logout(): void {
     clearCookie(ACCESS_COOKIE)
     clearCookie(REFRESH_COOKIE)
-    if (typeof window !== 'undefined') window.location.href = '/login'
+    if (typeof window !== 'undefined') {
+      localStorage.clear()
+      window.location.href = '/login'
+    }
   }
 
   // Attempts a silent token refresh. Returns true if a new access token was obtained.
