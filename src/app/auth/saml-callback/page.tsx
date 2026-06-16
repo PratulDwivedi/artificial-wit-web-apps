@@ -95,7 +95,13 @@ export default function SamlCallbackPage() {
       console.log('[saml-callback] access_token found:', !!access_token)
 
       if (!access_token) {
-        redirectToLoginError('session_error', `No session returned (keys: ${Object.keys(json).join(',')})`)
+        const d = json.data
+        const dataDesc = d === null          ? 'null'
+          : d === undefined                  ? 'undefined'
+          : Array.isArray(d)                 ? `array[${(d as unknown[]).length}]`
+          : typeof d === 'object'            ? `obj{${Object.keys(d as object).join(',')}}`
+          : String(d)
+        redirectToLoginError('session_error', `no_access_token:data=${dataDesc}`)
         return
       }
 
