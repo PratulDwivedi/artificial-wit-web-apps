@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { HttpHelper } from '@/lib/http'
 import { getProductConfig } from '@/lib/productConfig'
 import Image from 'next/image'
@@ -19,7 +19,12 @@ function redirectToLoginError(error: string, message?: string) {
 }
 
 export default function SamlCallbackPage() {
+  const didVerify = useRef(false)
+
   useEffect(() => {
+    if (didVerify.current) return
+    didVerify.current = true
+
     const params = new URLSearchParams(window.location.search)
     const token_hash  = params.get('token_hash')
     const type        = params.get('type')
