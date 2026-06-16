@@ -50,14 +50,7 @@ export default function SamlCallbackPage() {
       }
 
       let json: Record<string, unknown> = {}
-      let rawText = ''
-      try {
-        rawText = await res.text()
-        json = JSON.parse(rawText)
-      } catch { /* ignore */ }
-
-      console.log('[saml-callback] verify status:', res.status)
-      console.log('[saml-callback] verify body:', rawText)
+      try { json = await res.json() } catch { /* ignore */ }
 
       if (!res.ok) {
         const msg = (json.message ?? json.error ?? `HTTP ${res.status}`) as string
@@ -65,43 +58,14 @@ export default function SamlCallbackPage() {
         return
       }
 
-      // Handle multiple response shapes:
-      //   1. { access_token, refresh_token }                    — direct Supabase passthrough
-      //   2. { data: { access_token, refresh_token } }          — object-wrapped envelope
-      //   3. { data: [{ access_token, refresh_token }] }        — array-wrapped (RPC style)
-      //   4. { data: { session: { access_token, refresh_token } } } — Supabase JS client shape
-      type TokenShape = { access_token?: string; refresh_token?: string }
-      type SessionShape = { session?: TokenShape }
-
-      let access_token: string | undefined
-      let refresh_token: string | undefined
-
-      if (json.access_token) {
-        access_token  = json.access_token  as string
-        refresh_token = json.refresh_token as string | undefined
-      } else if (json.data) {
-        const d = json.data
-        if (Array.isArray(d)) {
-          const row = (d as TokenShape[])[0] ?? {}
-          access_token  = row.access_token
-          refresh_token = row.refresh_token
-        } else {
-          const obj = d as (TokenShape & SessionShape)
-          access_token  = obj.access_token ?? obj.session?.access_token
-          refresh_token = obj.refresh_token ?? obj.session?.refresh_token
-        }
-      }
-
-      console.log('[saml-callback] access_token found:', !!access_token)
+      // Response shape: { data: [{ aw_token, aw_refresh, expires_in, user }], is_success, message, status_code }
+      type SessionRow = { aw_token?: string; aw_refresh?: string }
+      const row = (Array.isArray(json.data) ? (json.data as SessionRow[])[0] : null) ?? {}
+      const access_token  = row.aw_token
+      const refresh_token = row.aw_refresh
 
       if (!access_token) {
-        const d = json.data
-        const dataDesc = d === null          ? 'null'
-          : d === undefined                  ? 'undefined'
-          : Array.isArray(d)                 ? `array[${(d as unknown[]).length}]`
-          : typeof d === 'object'            ? `obj{${Object.keys(d as object).join(',')}}`
-          : String(d)
-        redirectToLoginError('session_error', `no_access_token:data=${dataDesc}`)
+        redirectToLoginError('session_error', 'Session verification failed. Please try again.')
         return
       }
 
