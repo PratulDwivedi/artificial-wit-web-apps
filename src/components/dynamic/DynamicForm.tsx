@@ -63,12 +63,20 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
   const [formData, setFormData] = useState<Record<string, unknown>>(() => {
     if (initialData) return initialData
     if (recordId) return {}
-    const init: Record<string, unknown> = {}
+    let init: Record<string, unknown> = {}
     searchParams.forEach((raw, key) => {
       if (key === 'id') return
       const n = Number(raw)
       init[key] = (!isNaN(n) && raw.trim() !== '') ? n : raw
     })
+    // Apply control default values for new records; URL params take precedence
+    for (const control of section.controls ?? []) {
+      const dv = control.data?.default_value
+      if (dv === undefined || dv === null) continue
+      if (getNestedValue(init, control.binding_name) === undefined) {
+        init = setNestedValue(init, control.binding_name, dv)
+      }
+    }
     return init
   })
   const [loading,  setLoading]  = useState(false)
@@ -76,8 +84,33 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
     isNoneMode || section.display_mode_id !== section_display_modes.collapse
   )
 
+  // Evaluate control_rules: for each control that has rules, check if the current
+  // form value matches any rule's control_value and build an override map.
+  const displayModeOverrides: Record<number, number> = {}
+  for (const control of section.controls ?? []) {
+    if (!control.control_rules?.length) continue
+    const currentValue = getNestedValue(formData, control.binding_name)
+    for (const rule of control.control_rules) {
+      const matches = rule.control_value.some(v =>
+        Array.isArray(currentValue)
+          ? (currentValue as unknown[]).some(cv => String(cv) === String(v))
+          : currentValue != null && String(currentValue) === String(v)
+      )
+      if (matches) {
+        for (const aff of rule.affected_controls) {
+          for (const id of aff.affected_control_ids) {
+            displayModeOverrides[id] = aff.display_mode_id
+          }
+        }
+      }
+    }
+  }
+
   const visibleControls = [...(section.controls ?? [])]
-    .filter(c => c.display_mode_id !== control_display_modes.none_hidden || editMode)
+    .filter(c => {
+      const effectiveMode = displayModeOverrides[c.id] ?? c.display_mode_id
+      return effectiveMode !== control_display_modes.none_hidden || editMode
+    })
     .sort((a, b) => a.display_order - b.display_order)
 
   useEffect(() => {
@@ -133,6 +166,7 @@ export function DynamicForm({ section, schema, recordId, onDataChange, sharedDat
           >
             <DynamicControl
               {...control}
+              display_mode_id={displayModeOverrides[control.id] ?? control.display_mode_id}
               value={getNestedValue(formData, control.binding_name)}
               onChange={handleChange}
               cascadeValue={

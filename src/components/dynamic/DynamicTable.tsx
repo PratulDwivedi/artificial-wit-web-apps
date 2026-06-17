@@ -15,6 +15,7 @@ interface Props {
   recordId?: string     // pass when editing an existing record
   onDataChange?: (rows: Row[]) => void
   initialData?: Record<string, unknown>  // pre-loaded record data from DynamicPage
+  sharedData?: Record<string, unknown>  // merged data from sibling form sections (for cross-section cascade)
 }
 
 type Row = Record<string, unknown>
@@ -37,7 +38,7 @@ function evalFormula(formula: string, row: Row): unknown {
   }
 }
 
-export function DynamicTable({ section, schema, recordId, onDataChange, initialData }: Props) {
+export function DynamicTable({ section, schema, recordId, onDataChange, initialData, sharedData }: Props) {
   const { section_display_modes, control_display_modes, control_types } = APP_CONSTANTS
   const router   = useRouter()
   const editMode = useAppStore(s => s.editMode)
@@ -239,7 +240,9 @@ export function DynamicTable({ section, schema, recordId, onDataChange, initialD
                         onChange={(name, value) => updateCell(i, name, value)}
                         cascadeValue={
                           col.cascade_from_binding_name
-                            ? row[col.cascade_from_binding_name]
+                            ? (row[col.cascade_from_binding_name]
+                                ?? sharedData?.[col.cascade_from_binding_name]
+                                ?? initialData?.[col.cascade_from_binding_name])
                             : undefined
                         }
                         compact

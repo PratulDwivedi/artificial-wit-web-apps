@@ -151,7 +151,8 @@ export function DynamicPage({ routeName }: Props) {
   const [error,      setError]     = useState<string | null>(null)
   const [isSaving,   setIsSaving]  = useState(false)
   const [saveMsg,    setSaveMsg]   = useState<{ text: string; ok: boolean } | null>(null)
-  const [viewTrigger, setViewTrigger] = useState(0)
+  const [viewTrigger,  setViewTrigger]  = useState(0)
+  const [formResetKey, setFormResetKey] = useState(0)
   const [deleting,        setDeleting]        = useState(false)
   const [deleteMsg,       setDeleteMsg]       = useState<{ text: string; ok: boolean } | null>(null)
   const [pendingDelete,   setPendingDelete]   = useState<string | null>(null)
@@ -231,12 +232,14 @@ export function DynamicPage({ routeName }: Props) {
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Save failed')
       setSaveMsg({ text: env.message ?? 'Saved successfully', ok: true })
+      setViewTrigger(n => n + 1)
       if (schema.data?.is_clear_page) {
-        window.history.pushState(null, '', window.location.pathname)
+        window.history.pushState(window.history.state, '', window.location.pathname)
         setActiveRecordId(undefined)
         setInitialRecordData(null)
         sectionDataRef.current = new Map()
         setSharedData({})
+        setFormResetKey(k => k + 1)
       }
     } catch (e) {
       setSaveMsg({ text: e instanceof Error ? e.message : 'Save failed', ok: false })
@@ -264,7 +267,7 @@ export function DynamicPage({ routeName }: Props) {
   }, [activeRecordId, router])
 
   const handleRecordSelect = useCallback((id: string, url: string) => {
-    window.history.pushState(null, '', url)
+    window.history.pushState(window.history.state, '', url)
     setActiveRecordId(id)
   }, [])
 
@@ -423,23 +426,27 @@ export function DynamicPage({ routeName }: Props) {
       {/* ── Scrollable content — 16-col dynamic grid ───────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="dyn-grid p-5" style={{ gap: '20px' }}>
-          {sections.map(section => (
-            <div
-              key={section.id}
-              style={{ '--col-span': colSpan(section.data?.width) } as React.CSSProperties}
-            >
-              <SectionRenderer
-                section={section}
-                schema={schema}
-                recordId={activeRecordId}
-                viewTrigger={showView ? viewTrigger : undefined}
-                onDataChange={handleSectionData}
-                sharedData={sharedData}
-                initialData={initialRecordData ?? undefined}
-                onRecordSelect={handleRecordSelect}
-              />
-            </div>
-          ))}
+          {sections.map(section => {
+            const isEditable = section.child_display_mode_id === APP_CONSTANTS.child_display_modes.form
+                            || section.child_display_mode_id === APP_CONSTANTS.child_display_modes.dataTable
+            return (
+              <div
+                key={isEditable ? `${section.id}-${formResetKey}` : section.id}
+                style={{ '--col-span': colSpan(section.data?.width) } as React.CSSProperties}
+              >
+                <SectionRenderer
+                  section={section}
+                  schema={schema}
+                  recordId={activeRecordId}
+                  viewTrigger={viewTrigger}
+                  onDataChange={handleSectionData}
+                  sharedData={sharedData}
+                  initialData={initialRecordData ?? undefined}
+                  onRecordSelect={handleRecordSelect}
+                />
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -513,6 +520,7 @@ function SectionRenderer({
           recordId={recordId}
           onDataChange={rows => onDataChange(section.id, rows)}
           initialData={initialData}
+          sharedData={sharedData}
         />
       )
 

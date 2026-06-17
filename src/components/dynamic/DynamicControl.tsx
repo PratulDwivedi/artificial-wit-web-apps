@@ -381,6 +381,10 @@ export function DynamicControl({
 
   useEffect(() => {
     if (!binding_list_route_name || !needsOptions) return
+    // For cascade dropdowns, wait until the parent value is available so we
+    // don't fetch an unfiltered result set and then overwrite it with the
+    // correct filtered one, causing chips to briefly (or permanently) show IDs.
+    if (cascade_from_binding_name && cascadeValue == null) return
     setLoadingOptions(true)
     const params: Record<string, unknown> = {}
     if (cascade_from_binding_name && cascadeValue != null) {

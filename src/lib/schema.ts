@@ -1,3 +1,12 @@
+export interface ControlRule {
+  control_id: number
+  control_value: (number | string)[]
+  affected_controls: {
+    display_mode_id: number
+    affected_control_ids: number[]
+  }[]
+}
+
 export interface PageControl {
   id: number
   name: string
@@ -9,6 +18,7 @@ export interface PageControl {
   binding_list_page_id?: number
   binding_list_route_name?: string
   cascade_from_binding_name?: string
+  control_rules?: ControlRule[]
 }
 
 export interface PageSection {

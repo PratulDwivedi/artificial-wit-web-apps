@@ -38,7 +38,7 @@ export default async function SectionPage({
   if (local) return local
   return (
     <Suspense fallback={<PageLoader />}>
-      <DynamicPage routeName={section} />
+      <DynamicPage key={section} routeName={section} />
     </Suspense>
   )
 }
