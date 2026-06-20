@@ -28,8 +28,8 @@ function flattenPages(items: PageItem[], ancestors: string[] = []): FlatPage[] {
         id:         item.id,
         name:       item.name,
         route_name: item.route_name,
-        item_icon:  item.item_icon,
-        item_color: item.item_color,
+        item_icon:  item.data?.item_icon ?? null,
+        item_color: item.data?.item_color ?? null,
         breadcrumb: ancestors.join(' › '),
         descr:      item.descr,
       })

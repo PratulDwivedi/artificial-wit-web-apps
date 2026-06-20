@@ -25,8 +25,12 @@ export interface PageItem {
   name: string
   descr: string | null
   children: PageItem[]
-  item_icon: string | null
-  item_color: string | null
+  data: {
+    item_icon:     string | null
+    item_color:    string | null
+    tool_descr:    string | null
+    is_clear_page: boolean | null
+  } | null
   route_name: string
   display_order: number
   parent_page_id: number
@@ -64,7 +68,7 @@ function TreeNode({
   const pl = 8 + depth * 14
 
   if (hasChildren) {
-    const FolderIcon = resolveIcon(item.item_icon, open ? FolderOpen : Folder)
+    const FolderIcon = resolveIcon(item.data?.item_icon ?? null, open ? FolderOpen : Folder)
     return (
       <div>
         <button
@@ -79,7 +83,7 @@ function TreeNode({
           <FolderIcon
             size={13}
             className="shrink-0"
-            style={{ color: item.item_color ?? 'var(--c-t4)' }}
+            style={{ color: item.data?.item_color ?? 'var(--c-t4)' }}
           />
           <span className="text-[11px] font-medium truncate leading-tight">{item.name}</span>
         </button>
@@ -103,7 +107,7 @@ function TreeNode({
     )
   }
 
-  const LeafIcon = resolveIcon(item.item_icon, FileText)
+  const LeafIcon = resolveIcon(item.data?.item_icon ?? null, FileText)
   return (
     <button
       onClick={() => onNavigate(item.route_name)}
@@ -120,7 +124,7 @@ function TreeNode({
       <LeafIcon
         size={13}
         className="shrink-0"
-        style={{ color: item.item_color ?? (isActive ? 'var(--c-primary)' : 'var(--c-t4)') }}
+        style={{ color: item.data?.item_color ?? (isActive ? 'var(--c-primary)' : 'var(--c-t4)') }}
       />
       <span className={clsx('text-[11px] truncate leading-tight', isActive && 'font-semibold')}>
         {item.name}
@@ -136,7 +140,7 @@ function QuickLinkItem({ item, isActive, onNavigate }: {
   isActive: boolean
   onNavigate: (route: string) => void
 }) {
-  const Icon = resolveIcon(item.item_icon, Link)
+  const Icon = resolveIcon(item.data?.item_icon ?? null, Link)
   return (
     <button
       onClick={() => onNavigate(item.route_name)}
@@ -151,7 +155,7 @@ function QuickLinkItem({ item, isActive, onNavigate }: {
       <Icon
         size={13}
         className="shrink-0"
-        style={{ color: item.item_color ?? (isActive ? 'var(--c-primary)' : 'var(--c-t4)') }}
+        style={{ color: item.data?.item_color ?? (isActive ? 'var(--c-primary)' : 'var(--c-t4)') }}
       />
       <span className={clsx('text-[12px] truncate', isActive && 'font-semibold')}>{item.name}</span>
     </button>
