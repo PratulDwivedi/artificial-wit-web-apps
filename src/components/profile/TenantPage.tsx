@@ -219,6 +219,7 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
       setTenantName(name)
       setTenantLogoUrl(logoUrl || null)
       setMsg({ text: env.message ?? 'Saved', ok: true })
+      if (onClose) setTimeout(onClose, 1000)
     } catch (e: unknown) {
       setMsg({ text: e instanceof Error ? e.message : 'Failed to save', ok: false })
     } finally {

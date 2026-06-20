@@ -56,7 +56,7 @@ export function NotificationBadge() {
   const panelRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    HttpHelper.rpc('fn_get_notifications', {})
+    HttpHelper.rpc('fn_get_notifications', { p_product_name: process.env.NEXT_PUBLIC_PRODUCT_NAME })
       .then(({ data }) => {
         const env = data as unknown as NotifResponse
         if (env?.is_success) {

@@ -102,7 +102,7 @@ export class HttpHelper {
     try { json = await res.json() } catch { return { data: null, error: `HTTP ${res.status}` } }
 
     if (!res.ok) {
-      return { data: null, error: (json.message ?? json.error ?? `HTTP ${res.status}`) as string }
+      return { data: null, error: (json.message ?? json.detail ?? json.error ?? `HTTP ${res.status}`) as string }
     }
 
     const token        = json.access_token  as string | undefined
@@ -168,7 +168,7 @@ export class HttpHelper {
       try { json = await res.json() } catch { return { data: null, error: `HTTP ${res.status}` } }
 
       if (!res.ok) {
-        return { data: null, error: (json as { message?: string })?.message ?? `HTTP ${res.status}` }
+        return { data: null, error: (json as { message?: string; detail?: string })?.message ?? (json as { detail?: string })?.detail ?? `HTTP ${res.status}` }
       }
 
       return { data: json, error: null }
