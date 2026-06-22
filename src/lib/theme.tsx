@@ -1,5 +1,6 @@
 'use client'
 import { createContext, useContext, useEffect, useState } from 'react'
+import { Toaster } from 'sonner'
 
 type Theme = 'dark' | 'light'
 
@@ -66,6 +67,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, primary, toggle: () => setTheme(t => t === 'dark' ? 'light' : 'dark'), setPrimary }}>
+      <Toaster theme={theme} position="top-right" richColors closeButton />
       {children}
     </ThemeContext.Provider>
   )

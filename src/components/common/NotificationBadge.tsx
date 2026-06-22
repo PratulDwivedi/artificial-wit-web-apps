@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import {
@@ -10,6 +10,7 @@ import {
   AlertCircle, type LucideIcon,
 } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
+import { useHub } from '@/context/NotificationHubContext'
 
 interface NotificationItem {
   url:       string
@@ -55,8 +56,12 @@ export function NotificationBadge() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef   = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    HttpHelper.rpc('fn_get_notifications', { p_product_name: process.env.NEXT_PUBLIC_PRODUCT_NAME })
+  const { on } = useHub()
+
+  const fetchNotifications = useCallback(() => {
+    const params = { p_product_name: process.env.NEXT_PUBLIC_PRODUCT_NAME }
+    HttpHelper.rpcInvalidate('fn_get_notifications', params)
+    HttpHelper.rpc('fn_get_notifications', params)
       .then(({ data }) => {
         const env = data as unknown as NotifResponse
         if (env?.is_success) {
@@ -65,6 +70,12 @@ export function NotificationBadge() {
         }
       })
   }, [])
+
+  // Initial load
+  useEffect(() => { fetchNotifications() }, [fetchNotifications])
+
+  // Refresh on any hub notification, regardless of type
+  useEffect(() => on('*', () => fetchNotifications()), [on, fetchNotifications])
 
   // Close on outside click
   useEffect(() => {

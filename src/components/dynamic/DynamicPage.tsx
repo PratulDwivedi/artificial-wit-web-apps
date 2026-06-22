@@ -169,7 +169,6 @@ export function DynamicPage({ routeName }: Props) {
 
   // Must be before any early returns — Rules of Hooks
   const { setSidebarOpen, editMode, setEditMode, canEditMode } = useAppStore()
-
   useEffect(() => {
     setLoading(true); setError(null); setSchema(null)
     HttpHelper.rpc('fn_get_page_schema', { p_route_name: routeName })

@@ -367,6 +367,7 @@ export function DynamicControl({
   // Dropdown / chart options loaded via binding_list_route_name
   const [options,        setOptions]        = useState<DropdownOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
+  const [optionsError,   setOptionsError]   = useState<string | null>(null)
   const [uploading,      setUploading]      = useState(false)
   const fileRef       = useRef<HTMLInputElement>(null)
   const richEditorRef = useRef<HTMLDivElement>(null)
@@ -386,14 +387,17 @@ export function DynamicControl({
     // correct filtered one, causing chips to briefly (or permanently) show IDs.
     if (cascade_from_binding_name && cascadeValue == null) return
     setLoadingOptions(true)
+    setOptionsError(null)
     const params: Record<string, unknown> = {}
     if (cascade_from_binding_name && cascadeValue != null) {
       params[`p_${cascade_from_binding_name}`] = cascadeValue
     }
     HttpHelper.rpc(binding_list_route_name, params)
-      .then(({ data: env }) => {
-        const e = env as unknown as { is_success: boolean; data: DropdownOption[] }
+      .then(({ data: env, error }) => {
+        if (error) { setOptionsError(error); return }
+        const e = env as unknown as { is_success: boolean; data: DropdownOption[]; message?: string }
         if (e?.is_success) setOptions(e.data ?? [])
+        else if (e?.message) setOptionsError(e.message)
       })
       .finally(() => setLoadingOptions(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -808,16 +812,36 @@ export function DynamicControl({
 
       // ── Charts ─────────────────────────────────────────────────────────────
       case control_types.barChart: {
-        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
-        return loadingOptions
-          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="w-full pt-1" style={{ height: 220 }}>
-              <Bar data={chartData} options={chartOptions(chartData.isMulti) as never} />
-            </div>
+        if (loadingOptions) return (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
+          </div>
+        )
+        const chartData = toChartData(options.length ? options : value)
+        if (optionsError || chartData.labels.length === 0) return (
+          <div className="h-40 flex items-center justify-center text-[12px]" style={{ color: 'var(--c-t5)' }}>
+            {optionsError ?? 'No data'}
+          </div>
+        )
+        return (
+          <div className="w-full pt-1" style={{ height: 220 }}>
+            <Bar data={chartData} options={chartOptions(chartData.isMulti) as never} />
+          </div>
+        )
       }
 
       case control_types.lineChart: {
-        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value)
+        if (loadingOptions) return (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
+          </div>
+        )
+        const chartData = toChartData(options.length ? options : value)
+        if (optionsError || chartData.labels.length === 0) return (
+          <div className="h-40 flex items-center justify-center text-[12px]" style={{ color: 'var(--c-t5)' }}>
+            {optionsError ?? 'No data'}
+          </div>
+        )
         const lineData = chartData.isMulti
           ? {
               ...chartData,
@@ -843,15 +867,25 @@ export function DynamicControl({
                 pointRadius: 3,
               }],
             }
-        return loadingOptions
-          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="w-full pt-1">
-              <Line data={lineData} options={chartOptions(chartData.isMulti) as never} />
-            </div>
+        return (
+          <div className="w-full pt-1">
+            <Line data={lineData} options={chartOptions(chartData.isMulti) as never} />
+          </div>
+        )
       }
 
       case control_types.pieChart: {
-        const chartData = toChartData(loadingOptions ? [] : options.length ? options : value, true)
+        if (loadingOptions) return (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} />
+          </div>
+        )
+        const chartData = toChartData(options.length ? options : value, true)
+        if (optionsError || chartData.labels.length === 0) return (
+          <div className="h-40 flex items-center justify-center text-[12px]" style={{ color: 'var(--c-t5)' }}>
+            {optionsError ?? 'No data'}
+          </div>
+        )
         const PIE_OPTIONS = {
           responsive: true,
           maintainAspectRatio: true,
@@ -864,13 +898,13 @@ export function DynamicControl({
             tooltip: { enabled: true },
           },
         }
-        return loadingOptions
-          ? <div className="h-40 flex items-center justify-center"><Loader2 size={16} className="animate-spin" style={{ color: 'var(--c-t4)' }} /></div>
-          : <div className="w-full pt-1 flex justify-center">
-              <div style={{ width: '100%', maxWidth: 260 }}>
-                <Pie data={chartData} options={PIE_OPTIONS as never} />
-              </div>
+        return (
+          <div className="w-full pt-1 flex justify-center">
+            <div style={{ width: '100%', maxWidth: 260 }}>
+              <Pie data={chartData} options={PIE_OPTIONS as never} />
             </div>
+          </div>
+        )
       }
 
       // ── Table row actions (used in table context, no-op in forms) ──────────
