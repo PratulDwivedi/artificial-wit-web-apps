@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, FileText,
-  Sun, Moon, User, Settings, LogOut, Loader2, X, Link, Search,
+  Sun, Moon, User, Settings, LogOut, Loader2, X, Link, Search, CreditCard,
 } from 'lucide-react'
 import { resolveIcon } from '@/lib/icons'
 import { useTheme, PRIMARY_COLORS } from '@/lib/theme'
@@ -301,6 +301,11 @@ function UserMenu() {
               className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[var(--c-hover)]"
               style={{ color: 'var(--c-t2)' }}>
               <Settings size={13} style={{ color: 'var(--c-t4)' }} /> Settings
+            </button>
+            <button onClick={() => { setOpen(false); router.push('/billing') }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[var(--c-hover)]"
+              style={{ color: 'var(--c-t2)' }}>
+              <CreditCard size={13} style={{ color: 'var(--c-t4)' }} /> Billing
             </button>
 
             <button onClick={toggleTheme}

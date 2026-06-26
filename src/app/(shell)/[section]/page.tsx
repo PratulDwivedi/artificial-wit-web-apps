@@ -7,6 +7,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage'
 import { DynamicPage } from '@/components/dynamic/DynamicPage'
 import { TemplatePage } from '@/components/template/TemplatePage'
 import { CodeTemplateShell } from '@/components/code-template/CodeTemplateShell'
+import { BillingPage } from '@/components/billing/BillingPage'
 
 function resolveLocalPage(section: string): React.ReactNode | null {
   switch (section) {
@@ -14,6 +15,7 @@ function resolveLocalPage(section: string): React.ReactNode | null {
     case 'tenant':        return <TenantPage />
     case 'user':          return <UserPage />
     case 'settings':      return <SettingsPage />
+    case 'billing':       return <BillingPage />
     case 'template':      return <TemplatePage />
     case 'code_template': return <CodeTemplateShell />
     default:              return null
