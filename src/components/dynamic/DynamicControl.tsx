@@ -607,12 +607,19 @@ export function DynamicControl({
           />
         )
 
-      case control_types.dropdownMultiselect:
+      case control_types.dropdownMultiselect: {
+        const multiValue = (() => {
+          if (Array.isArray(value)) return value
+          if (typeof value === 'string' && value.trim().startsWith('[')) {
+            try { const p = JSON.parse(value); if (Array.isArray(p)) return p } catch {}
+          }
+          return value
+        })()
         return (
           <SearchableDropdown
             inputId={ctrlId}
             options={options}
-            value={value}
+            value={multiValue}
             onChange={v => onChange(binding_name, v)}
             loading={loadingOptions}
             disabled={isDisabled}
@@ -620,6 +627,7 @@ export function DynamicControl({
             multiple
           />
         )
+      }
 
       // ── Tree view ──────────────────────────────────────────────────────────
       case control_types.treeViewSingle:
