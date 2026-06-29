@@ -24,7 +24,7 @@ export interface ProfileData {
     id: number
     code: string
     name: string
-    data?: { logo_url?: string | null }
+    data?: { logo_url?: string | null; datetime_format?: string; time_zone?: string } | null
   }
   data: {
     profile_pic?: string | null
@@ -35,6 +35,7 @@ export interface ProfileData {
     currency_symbol?: string
     language?: string
     datetime_format?: string
+    time_zone?: string
     mobile_no?: number
     show_editor?: boolean
     is_edit_mode?: boolean
@@ -52,6 +53,8 @@ interface AppState {
   sidebarOpen:    boolean
   editMode:       boolean
   canEditMode:    boolean
+  datetimeFormat: string | null
+  timeZone:       string | null
 
   setUserEmail:     (email: string | null) => void
   setUserName:      (name: string | null)  => void
@@ -65,16 +68,18 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  userEmail:     null,
-  userName:      null,
-  fullName:      null,
-  profilePic:    null,
-  tenantName:    null,
-  tenantLogoUrl: null,
-  startupRoute:  null,
-  sidebarOpen:   false,
-  editMode:      false,
-  canEditMode:   false,
+  userEmail:      null,
+  userName:       null,
+  fullName:       null,
+  profilePic:     null,
+  tenantName:     null,
+  tenantLogoUrl:  null,
+  startupRoute:   null,
+  sidebarOpen:    false,
+  editMode:       false,
+  canEditMode:    false,
+  datetimeFormat: null,
+  timeZone:       null,
 
   setUserEmail:     (email)  => set({ userEmail: email }),
   setUserName:      (name)   => set({ userName: name }),
@@ -87,13 +92,15 @@ export const useAppStore = create<AppState>((set) => ({
 
   // Convenience: set all profile fields at once
   setProfile: (p) => set({
-    userEmail:     p.email ?? null,
-    userName:      p.user_name ?? null,
-    fullName:      p.full_name ?? null,
-    profilePic:    p.data?.profile_pic ?? null,
-    tenantName:    p.tenant?.name ?? null,
-    tenantLogoUrl: p.tenant?.data?.logo_url ?? null,
-    startupRoute:  resolveStartupRoute(p.data?.route_name_web),
-    canEditMode:   p.data?.show_editor === true,
+    userEmail:      p.email ?? null,
+    userName:       p.user_name ?? null,
+    fullName:       p.full_name ?? null,
+    profilePic:     p.data?.profile_pic ?? null,
+    tenantName:     p.tenant?.name ?? null,
+    tenantLogoUrl:  p.tenant?.data?.logo_url ?? null,
+    startupRoute:   resolveStartupRoute(p.data?.route_name_web),
+    canEditMode:    p.data?.show_editor === true,
+    datetimeFormat: p.tenant?.data?.datetime_format ?? p.data?.datetime_format ?? null,
+    timeZone:       p.tenant?.data?.time_zone       ?? p.data?.time_zone       ?? null,
   }),
 }))

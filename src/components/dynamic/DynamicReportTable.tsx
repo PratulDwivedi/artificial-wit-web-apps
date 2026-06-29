@@ -55,6 +55,53 @@ function cellStr(val: unknown): string {
   return String(val)
 }
 
+// ── DateTime formatter ────────────────────────────────────────────────────────
+
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function formatDateTimeValue(
+  value:    unknown,
+  format:   string | null | undefined,
+  timeZone: string | null | undefined,
+  dateOnly  = false,
+): string {
+  if (value == null || value === '') return ''
+  const date = new Date(String(value))
+  if (isNaN(date.getTime())) return String(value)
+
+  const tz  = timeZone || 'UTC'
+  const fmt = format   || 'DD-MMM-YYYY hh:mm A'
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year:     'numeric',
+    month:    '2-digit',
+    day:      '2-digit',
+    hour:     '2-digit',
+    minute:   '2-digit',
+    hour12:   false,
+  }).formatToParts(date)
+
+  const get    = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  const hour24 = parseInt(get('hour'), 10) % 24
+  const monthN = parseInt(get('month'), 10)
+  const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24
+
+  const dateFmt = fmt
+    .replace('YYYY', get('year'))
+    .replace('MMM',  MONTHS_SHORT[monthN - 1] ?? '')
+    .replace('MM',   String(monthN).padStart(2, '0'))
+    .replace('DD',   get('day'))
+
+  if (dateOnly) return dateFmt
+
+  return dateFmt
+    .replace('hh', String(hour12).padStart(2, '0'))
+    .replace('HH', String(hour24).padStart(2, '0'))
+    .replace('mm', get('minute'))
+    .replace('A',  hour24 < 12 ? 'AM' : 'PM')
+}
+
 // ── Action cell ───────────────────────────────────────────────────────────────
 
 function ActionCell({ control, row, onRecordSelect, routeName }: {
@@ -192,8 +239,10 @@ function Pagination({ page, totalPages, total, pageSize, onPage, onPageSize }: {
 
 export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordSelect }: Props) {
   const { section_display_modes, control_display_modes, control_types } = APP_CONSTANTS
-  const router   = useRouter()
-  const editMode = useAppStore(s => s.editMode)
+  const router         = useRouter()
+  const editMode       = useAppStore(s => s.editMode)
+  const datetimeFormat = useAppStore(s => s.datetimeFormat)
+  const timeZone       = useAppStore(s => s.timeZone)
 
   const [rows,    setRows]    = useState<Row[]>([])
   const [loading, setLoading] = useState(false)
@@ -651,8 +700,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
                           </td>
                         )
                       }
-                      const val = resolvePath(row, col.binding_name)
-                      const str = cellStr(val)
+                      const val       = resolvePath(row, col.binding_name)
+                      const isDateTime = col.control_type_id === control_types.dateAndTime
+                      const isDate     = col.control_type_id === control_types.date
+                      const str = (isDateTime || isDate)
+                        ? formatDateTimeValue(val, datetimeFormat, timeZone, isDate)
+                        : cellStr(val)
                       return (
                         <td key={col.id} className="px-3 py-0.5 overflow-hidden"
                           style={{ color: 'var(--c-t2)', maxWidth: `${colMaxPx(col)}px` }}>

@@ -18,6 +18,7 @@ interface TenantProfile {
     language?:        string | null
     currency?:        string | null
     currency_symbol?: string | null
+    time_zone?:       string | null
   } | null
 }
 
@@ -29,6 +30,14 @@ interface ProfileEnvelope {
 }
 
 interface LookupItem { id: number; code: string; name: string; data?: { symbol?: string } | null }
+interface TimeZoneItem { name: string; abbrev: string; utc_offset: string; is_dst: boolean }
+
+function fmtUtcOffset(utc_offset: string): string {
+  const neg = utc_offset.startsWith('-')
+  const abs = neg ? utc_offset.slice(1) : utc_offset
+  const [hh = '00', mm = '00'] = abs.split(':')
+  return `UTC${neg ? '-' : '+'}${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -138,10 +147,12 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
   const [language,       setLanguage]       = useState('')
   const [currency,       setCurrency]       = useState('')
   const [currencySymbol, setCurrencySymbol] = useState('')
+  const [timeZone,       setTimeZone]       = useState('')
 
   const [languages,  setLanguages]  = useState<LookupItem[]>([])
   const [currencies, setCurrencies] = useState<LookupItem[]>([])
   const [dtFormats,  setDtFormats]  = useState<LookupItem[]>([])
+  const [timeZones,  setTimeZones]  = useState<TimeZoneItem[]>([])
 
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -161,6 +172,9 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
       HttpHelper.rpc<LookupItem[]>('fn_get_datetime_formats').then(({ data }) => {
         if (data?.is_success) setDtFormats(data.data ?? [])
       }),
+      HttpHelper.rpc<TimeZoneItem[]>('fn_get_time_zones').then(({ data }) => {
+        if (data?.is_success) setTimeZones(data.data ?? [])
+      }),
       HttpHelper.rpc<ProfileEnvelope>('fn_get_profile').then(({ data }) => {
         const tenant = (data as unknown as ProfileEnvelope)?.data?.[0]?.tenant
         if (tenant) {
@@ -170,6 +184,7 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
           setLanguage(tenant.data?.language ?? '')
           setCurrency(tenant.data?.currency ?? '')
           setCurrencySymbol(tenant.data?.currency_symbol ?? '')
+          setTimeZone(tenant.data?.time_zone ?? '')
         }
       }),
     ]).finally(() => setLoading(false))
@@ -211,6 +226,7 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
           language:        language || null,
           currency:        currency || null,
           currency_symbol: currencySymbol || null,
+          time_zone:       timeZone || null,
         },
       })
       if (error) throw error
@@ -225,7 +241,7 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
     } finally {
       setSaving(false)
     }
-  }, [name, logoUrl, datetimeFormat, language, currency, currencySymbol, setTenantName, setTenantLogoUrl])
+  }, [name, logoUrl, datetimeFormat, language, currency, currencySymbol, timeZone, setTenantName, setTenantLogoUrl])
 
   const content = loading ? (
     <div className="flex items-center justify-center py-24">
@@ -281,6 +297,13 @@ export function TenantPage({ onClose }: { onClose?: () => void } = {}) {
             <SearchSelect value={language} onChange={setLanguage}
               options={languages.map(l => ({ value: l.code, label: l.name }))} />
           </div>
+        </div>
+
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
+            style={{ color: 'var(--c-t4)' }}>Time zone</label>
+          <SearchSelect value={timeZone} onChange={setTimeZone}
+            options={timeZones.map(tz => ({ value: tz.name, label: `(${fmtUtcOffset(tz.utc_offset)}) ${tz.name} — ${tz.abbrev}` }))} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">

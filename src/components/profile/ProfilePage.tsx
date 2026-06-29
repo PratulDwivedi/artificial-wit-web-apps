@@ -21,11 +21,20 @@ interface ProfileData {
     currency?:        string | null
     currency_symbol?: string | null
     datetime_format?: string | null
+    time_zone?:       string | null
     profile_pic?:     string | null
   }
 }
 
 interface LookupItem { id: number; code: string; name: string; data?: { symbol?: string } | null }
+interface TimeZoneItem { name: string; abbrev: string; utc_offset: string; is_dst: boolean }
+
+function fmtUtcOffset(utc_offset: string): string {
+  const neg = utc_offset.startsWith('-')
+  const abs = neg ? utc_offset.slice(1) : utc_offset
+  const [hh = '00', mm = '00'] = abs.split(':')
+  return `UTC${neg ? '-' : '+'}${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`
+}
 
 type Tab = 'profile' | 'password'
 
@@ -140,6 +149,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
     const [currency,       setCurrency]       = useState(profile.data?.currency ?? 'USD')
     const [currencySymbol, setCurrencySymbol] = useState(profile.data?.currency_symbol ?? '')
     const [datetimeFormat, setDatetimeFormat] = useState(profile.data?.datetime_format ?? '')
+    const [timeZone,       setTimeZone]       = useState(profile.data?.time_zone ?? '')
     const [profilePic,     setProfilePic]     = useState<string | null>(profile.data?.profile_pic ?? null)
     const [uploading,      setUploading]      = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -147,6 +157,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
     const [languages,  setLanguages]  = useState<LookupItem[]>([])
     const [currencies, setCurrencies] = useState<LookupItem[]>([])
     const [dtFormats,  setDtFormats]  = useState<LookupItem[]>([])
+    const [timeZones,  setTimeZones]  = useState<TimeZoneItem[]>([])
     const [saving,     setSaving]     = useState(false)
     const [msg,        setMsg]        = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -160,6 +171,9 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
         }),
         HttpHelper.rpc<LookupItem[]>('fn_get_datetime_formats').then(({ data }) => {
           if (data?.is_success) setDtFormats(data.data ?? [])
+        }),
+        HttpHelper.rpc<TimeZoneItem[]>('fn_get_time_zones').then(({ data }) => {
+          if (data?.is_success) setTimeZones(data.data ?? [])
         }),
       ])
     }, [])
@@ -183,6 +197,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
             language:        language || null,
             currency:        currency || null,
             currency_symbol: currencySymbol || null,
+            time_zone:       timeZone || null,
             profile_pic:     profilePic,
           },
         })
@@ -194,7 +209,7 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
       } finally {
         setSaving(false)
       }
-    }, [fullName, userName, email, mobileNo, datetimeFormat, language, currency, currencySymbol, profilePic])
+    }, [fullName, userName, email, mobileNo, datetimeFormat, language, currency, currencySymbol, timeZone, profilePic])
 
     useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave])
 
@@ -299,6 +314,13 @@ const ProfileTabComponent = forwardRef<TabRef, { profile: ProfileData; inModal?:
               <SearchSelect value={language} onChange={setLanguage}
                 options={languages.map(l => ({ value: l.code, label: l.name }))} />
             </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 block"
+              style={{ color: 'var(--c-t4)' }}>Time zone</label>
+            <SearchSelect value={timeZone} onChange={setTimeZone}
+              options={timeZones.map(tz => ({ value: tz.name, label: `(${fmtUtcOffset(tz.utc_offset)}) ${tz.name} — ${tz.abbrev}` }))} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
