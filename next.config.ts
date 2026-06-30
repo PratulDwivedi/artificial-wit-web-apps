@@ -21,22 +21,7 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)',
   },
-  {
-    // connect-src allows https: broadly because users configure arbitrary MCP server URLs
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self'",
-      "connect-src 'self' https:",
-      "frame-src 'self' blob:",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; '),
-  },
+  // CSP is set per-request with a nonce in src/proxy.ts to avoid 'unsafe-inline'
 ];
 
 const nextConfig: NextConfig = {
