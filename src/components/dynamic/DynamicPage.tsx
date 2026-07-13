@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { AlertCircle, Eye, Loader2, Menu, Pencil, Plus, Save, Trash2 } from 'lucide-react'
+import { AlertCircle, Eye, Loader2, Menu, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
@@ -159,6 +159,8 @@ export function DynamicPage({ routeName }: Props) {
   // Pre-fetched record data loaded at page level so form + table sections share one RPC call
   const [initialRecordData, setInitialRecordData] = useState<Record<string, unknown> | null>(null)
   const [loadingRecord,     setLoadingRecord]      = useState(!!urlRecordId)
+  // Panel mode (schema.data.open_mode === 'panel'): records open in a right slide-over
+  const [panelOpen,         setPanelOpen]          = useState(!!urlRecordId)
 
   // Accumulates the latest data from each section (keyed by section.id)
   const sectionDataRef = useRef(new Map<number, unknown>())
@@ -184,7 +186,11 @@ export function DynamicPage({ routeName }: Props) {
 
   // Sync activeRecordId with browser back/forward navigation
   useEffect(() => {
-    const onPop = () => setActiveRecordId(new URLSearchParams(window.location.search).get('id') ?? undefined)
+    const onPop = () => {
+      const id = new URLSearchParams(window.location.search).get('id') ?? undefined
+      setActiveRecordId(id)
+      setPanelOpen(!!id)
+    }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
@@ -215,6 +221,31 @@ export function DynamicPage({ routeName }: Props) {
     setSharedData(prev => shallowEqualRecords(prev, merged) ? prev : merged)
   }, [])
 
+  // Close the slide-over and reset record state (panel mode only)
+  const closePanel = useCallback(() => {
+    window.history.pushState(window.history.state, '', window.location.pathname)
+    setPanelOpen(false)
+    setActiveRecordId(undefined)
+    setInitialRecordData(null)
+    sectionDataRef.current = new Map()
+    setSharedData({})
+    setFormResetKey(k => k + 1)
+    setSaveMsg(null)
+    setDeleteMsg(null)
+  }, [])
+
+  // Open the slide-over with an empty form for a new record (panel mode only)
+  const openNewRecordPanel = useCallback(() => {
+    setActiveRecordId(undefined)
+    setInitialRecordData(null)
+    sectionDataRef.current = new Map()
+    setSharedData({})
+    setFormResetKey(k => k + 1)
+    setSaveMsg(null)
+    setDeleteMsg(null)
+    setPanelOpen(true)
+  }, [])
+
   // Single page-level save — builds payload from schema controls across all sections
   const handleSave = useCallback(async () => {
     if (!schema?.binding_name_post) return
@@ -232,6 +263,10 @@ export function DynamicPage({ routeName }: Props) {
       if (!env?.is_success) throw new Error(env?.message ?? 'Save failed')
       setSaveMsg({ text: env.message ?? 'Saved successfully', ok: true })
       setViewTrigger(n => n + 1)
+      if (schema.data?.open_mode === 'panel') {
+        // Panel mode: refresh the table behind, then close the slide-over
+        setTimeout(() => closePanel(), 900)
+      }
       if (schema.data?.is_clear_page) {
         window.history.pushState(window.history.state, '', window.location.pathname)
         setActiveRecordId(undefined)
@@ -245,7 +280,7 @@ export function DynamicPage({ routeName }: Props) {
     } finally {
       setIsSaving(false)
     }
-  }, [schema, activeRecordId])
+  }, [schema, activeRecordId, closePanel])
 
   const handleDelete = useCallback(async (bindingName: string) => {
     if (!activeRecordId) return
@@ -257,17 +292,25 @@ export function DynamicPage({ routeName }: Props) {
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Delete failed')
       setDeleteMsg({ text: env.message ?? 'Deleted successfully', ok: true })
-      setTimeout(() => router.back(), 1200)
+      if (schema?.data?.open_mode === 'panel') {
+        setViewTrigger(n => n + 1)
+        setTimeout(() => closePanel(), 900)
+      } else {
+        setTimeout(() => router.back(), 1200)
+      }
     } catch (e) {
       setDeleteMsg({ text: e instanceof Error ? e.message : 'Delete failed', ok: false })
     } finally {
       setDeleting(false)
     }
-  }, [activeRecordId, router])
+  }, [activeRecordId, router, schema, closePanel])
+
+  const panelMode = schema?.data?.open_mode === 'panel'
 
   const handleRecordSelect = useCallback((id: string, url: string) => {
     window.history.pushState(window.history.state, '', url)
     setActiveRecordId(id)
+    setPanelOpen(true)
   }, [])
 
   if (loading || loadingRecord) return (
@@ -287,9 +330,11 @@ export function DynamicPage({ routeName }: Props) {
   if (!schema) return null
 
   const isEditing  = !!activeRecordId
-  const showSave   = !!schema.binding_name_post
+  const showSave   = !!schema.binding_name_post && !panelMode
   const showView   = !!schema.binding_name_get && !schema.binding_name_post
-  const showDelete = isEditing && !!schema.binding_name_delete
+  const showDelete = isEditing && !!schema.binding_name_delete && !panelMode
+  const panelSave   = panelMode && !!schema.binding_name_post
+  const panelDelete = panelMode && isEditing && !!schema.binding_name_delete
   const Icon       = resolveIcon(schema.data?.item_icon)
 
   const sections = [...(schema.sections ?? [])]
@@ -384,6 +429,17 @@ export function DynamicPage({ routeName }: Props) {
             </button>
           )}
 
+          {/* New record — panel mode only: opens the slide-over with an empty form */}
+          {panelSave && (
+            <button type="button"
+              onClick={openNewRecordPanel}
+              title="New record"
+              className="flex items-center gap-1.5 px-2 py-2 sm:px-4 btn-primary rounded-xl text-[13px] font-semibold transition">
+              <Plus size={13} />
+              <span className="hidden sm:inline">New</span>
+            </button>
+          )}
+
           {/* View — triggers a refresh of all report table sections */}
           {showView && (
             <button type="button"
@@ -428,6 +484,8 @@ export function DynamicPage({ routeName }: Props) {
           {sections.map(section => {
             const isEditable = section.child_display_mode_id === APP_CONSTANTS.child_display_modes.form
                             || section.child_display_mode_id === APP_CONSTANTS.child_display_modes.dataTable
+            // Panel mode: editable (form) sections render inside the slide-over instead
+            if (panelMode && isEditable) return null
             return (
               <div
                 key={isEditable ? `${section.id}-${formResetKey}` : section.id}
@@ -448,6 +506,96 @@ export function DynamicPage({ routeName }: Props) {
           })}
         </div>
       </div>
+
+      {/* ── Record slide-over (panel mode) ─────────────────────────────────── */}
+      {panelMode && panelOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.35)' }}
+          onMouseDown={e => { if (e.target === e.currentTarget) closePanel() }}>
+          <div className="w-full max-w-[560px] h-full flex flex-col border-l shadow-2xl"
+            style={{ background: 'var(--c-base)', borderColor: 'var(--c-border)' }}>
+
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b flex-none"
+              style={{ background: 'var(--c-topbar)', borderColor: 'var(--c-border)' }}>
+              <div className="min-w-0">
+                <h2 className="text-[14px] font-semibold truncate" style={{ color: 'var(--c-t1)' }}>
+                  {schema.name} — {isEditing ? `#${activeRecordId}` : 'New'}
+                </h2>
+              </div>
+              <button type="button" onClick={closePanel}
+                className="p-1.5 rounded-md transition hover:bg-[var(--c-hover)]" style={{ color: 'var(--c-t4)' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Panel feedback banners */}
+            {saveMsg && (
+              <div className="shrink-0 px-5 py-2.5 text-[12px] border-b"
+                style={saveMsg.ok
+                  ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
+                  : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
+                {saveMsg.text}
+              </div>
+            )}
+            {deleteMsg && (
+              <div className="shrink-0 px-5 py-2.5 text-[12px] border-b"
+                style={deleteMsg.ok
+                  ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
+                  : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
+                {deleteMsg.text}
+              </div>
+            )}
+
+            {/* Panel body — editable sections stacked full-width */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+              {sections
+                .filter(s => s.child_display_mode_id === APP_CONSTANTS.child_display_modes.form
+                          || s.child_display_mode_id === APP_CONSTANTS.child_display_modes.dataTable)
+                .map(section => (
+                  <SectionRenderer
+                    key={`panel-${section.id}-${formResetKey}`}
+                    section={section}
+                    schema={schema}
+                    recordId={activeRecordId}
+                    viewTrigger={viewTrigger}
+                    onDataChange={handleSectionData}
+                    sharedData={sharedData}
+                    initialData={initialRecordData ?? undefined}
+                    onRecordSelect={handleRecordSelect}
+                  />
+                ))}
+            </div>
+
+            {/* Panel footer */}
+            <div className="flex items-center gap-2 px-5 py-4 border-t flex-none"
+              style={{ background: 'var(--c-topbar)', borderColor: 'var(--c-border)' }}>
+              {panelDelete && (
+                <button type="button" disabled={deleting}
+                  onClick={() => setPendingDelete(schema.binding_name_delete!)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[13px] font-medium transition disabled:opacity-60"
+                  style={{ borderColor: '#fca5a5', color: '#ef4444', background: 'rgba(239,68,68,0.06)' }}>
+                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+              )}
+              <div className="flex-1" />
+              <button type="button" onClick={closePanel}
+                className="px-4 py-2 rounded-xl border text-[13px] font-medium transition hover:bg-[var(--c-hover)]"
+                style={{ borderColor: 'var(--c-border-strong)', color: 'var(--c-t2)' }}>
+                Cancel
+              </button>
+              {panelSave && (
+                <button type="button" disabled={isSaving || deleting}
+                  onClick={handleSave}
+                  className="flex items-center gap-1.5 px-4 py-2 btn-primary rounded-xl text-[13px] font-semibold transition disabled:opacity-60">
+                  {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                  {isSaving ? (isEditing ? 'Updating…' : 'Saving…') : (isEditing ? 'Update' : 'Save')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!pendingDelete}

@@ -46,6 +46,8 @@ export interface PageSchema {
   data?: {
     item_icon?: string
     is_clear_page?: boolean
+    /** 'panel' opens selected records in a right slide-over instead of full-page record mode */
+    open_mode?: 'page' | 'panel'
   }
   sections: PageSection[]
   is_active: boolean

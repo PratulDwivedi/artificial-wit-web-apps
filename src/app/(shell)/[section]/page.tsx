@@ -8,6 +8,9 @@ import { DynamicPage } from '@/components/dynamic/DynamicPage'
 import { TemplatePage } from '@/components/template/TemplatePage'
 import { CodeTemplateShell } from '@/components/code-template/CodeTemplateShell'
 import { BillingPage } from '@/components/billing/BillingPage'
+import { DealsKanbanPage } from '@/components/crm/DealsKanbanPage'
+import { Account360Page } from '@/components/crm/Account360Page'
+import { CrmDashboardPage } from '@/components/crm/CrmDashboardPage'
 
 function resolveLocalPage(section: string): React.ReactNode | null {
   switch (section) {
@@ -18,6 +21,10 @@ function resolveLocalPage(section: string): React.ReactNode | null {
     case 'billing':       return <BillingPage />
     case 'template':      return <TemplatePage />
     case 'code_template': return <CodeTemplateShell />
+    case 'deals':          return <DealsKanbanPage />
+    // 'leads' and 'accounts' are DB-configured dynamic pages (panel mode) — fall through to DynamicPage
+    case 'account_detail': return <Account360Page />
+    case 'crm_dashboard': return <CrmDashboardPage />
     default:              return null
   }
 }
