@@ -3,6 +3,8 @@
 import { useEffect } from 'react'
 import { X, ExternalLink } from 'lucide-react'
 import { APP_CONSTANTS } from '@/lib/constants'
+import { useAppStore } from '@/lib/store'
+import { formatDateTimeValue } from '@/lib/datetime'
 import { HtmlParser } from '@/components/common/HtmlParser'
 import ReactMarkdown from 'react-markdown'
 
@@ -32,11 +34,22 @@ function resolvePath(row: Row, path: string): unknown {
 
 function FieldValue({ control, row }: { control: ViewControl; row: Row }) {
   const { control_types } = APP_CONSTANTS
+  const datetimeFormat = useAppStore(s => s.datetimeFormat)
+  const timeZone       = useAppStore(s => s.timeZone)
   const raw = resolvePath(row, control.binding_name)
   const ct  = control.control_type_id
 
   if (raw === null || raw === undefined) {
     return <span className="text-[13px]" style={{ color: 'var(--c-t5)' }}>—</span>
+  }
+
+  // Date / DateTime — same tenant format + timezone as the report table cells
+  if (ct === control_types.date || ct === control_types.dateAndTime) {
+    return (
+      <span className="text-[13px]" style={{ color: 'var(--c-t1)' }}>
+        {formatDateTimeValue(raw, datetimeFormat, timeZone, ct === control_types.date)}
+      </span>
+    )
   }
 
   // Boolean / checkbox / switch

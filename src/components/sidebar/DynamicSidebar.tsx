@@ -422,7 +422,7 @@ export function DynamicSidebar() {
           <p className="text-[12px] font-semibold truncate leading-tight" style={{ color: 'var(--c-t1)' }}>
             Artificial Wit
           </p>
-          <p className="text-[10px] truncate" style={{ color: 'var(--c-t5)' }}>AI Assistant</p>
+          {/* <p className="text-[10px] truncate" style={{ color: 'var(--c-t5)' }}>AI Assistant</p> */}
         </div>
         {/* Close button — only visible on mobile */}
         <button
