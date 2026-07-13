@@ -1,14 +1,24 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { X, Loader2, Trash2, Save } from 'lucide-react'
+import { X, Loader2, Trash2, Save, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { HttpHelper } from '@/lib/http'
 import { SearchableDropdown } from '@/components/dynamic/SearchableDropdown'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+interface DealContact {
+  contact_id: number
+  name: string
+  job_title: string | null
+  email: string | null
+  role: string | null
+  is_primary: boolean
+}
+
 interface DealDetail {
+  deal_contacts: DealContact[]
   deal: {
     id: number; name: string; amount: number | null; currency: string
     probability: number | null; status: 'open' | 'won' | 'lost'
@@ -45,8 +55,12 @@ const FN_UPDATE  = 'crm.fn_update_deal'
 const FN_DELETE  = 'crm.fn_delete_deal'
 const FN_OPTIONS = 'crm.fn_get_deal_form_options'
 
-const LEAD_SOURCES = ['website', 'referral', 'campaign', 'tradeshow', 'partner', 'existing', 'other']
-const CURRENCIES   = ['INR', 'USD', 'EUR', 'GBP', 'AED']
+const FN_ADD_CONTACT    = 'crm.fn_add_deal_contact'
+const FN_REMOVE_CONTACT = 'crm.fn_remove_deal_contact'
+
+const LEAD_SOURCES  = ['website', 'referral', 'campaign', 'tradeshow', 'partner', 'existing', 'other']
+const CURRENCIES    = ['INR', 'USD', 'EUR', 'GBP', 'AED']
+const CONTACT_ROLES = ['Decision Maker', 'Champion', 'Influencer', 'Technical', 'Billing', 'Other']
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--c-panel)', color: 'var(--c-t1)', borderColor: 'var(--c-border-strong)',
@@ -82,6 +96,11 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
   const [leadSource, setLeadSource] = useState('')
   const [description, setDescription] = useState('')
   const [lostReason, setLostReason] = useState('')
+
+  // Deal contacts block
+  const [addContactId, setAddContactId] = useState<number | ''>('')
+  const [addRole, setAddRole] = useState('')
+  const [contactBusy, setContactBusy] = useState(false)
 
   useEffect(() => {
     if (dealId === null) { setDetail(null); setConfirmDelete(false); return }
@@ -126,6 +145,44 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
     () => (options?.contacts ?? []).filter(c => accountId === '' || c.account_id === accountId),
     [options, accountId]
   )
+
+  // Silently refresh only the contacts + timeline (leaves unsaved form edits intact)
+  const refreshContacts = async () => {
+    if (!detail) return
+    HttpHelper.rpcInvalidate(FN_DETAIL, { p_deal_id: detail.deal.id })
+    const { data: res } = await HttpHelper.rpc<DealDetail[]>(FN_DETAIL, { p_deal_id: detail.deal.id })
+    const fresh = res?.is_success ? res.data?.[0] : undefined
+    if (fresh) setDetail(d => d ? { ...d, deal_contacts: fresh.deal_contacts, timeline: fresh.timeline } : d)
+  }
+
+  const addContact = async () => {
+    if (!detail || addContactId === '') return
+    setContactBusy(true)
+    const { data: res, error } = await HttpHelper.rpc(FN_ADD_CONTACT, {
+      p_deal_id: detail.deal.id,
+      p_contact_id: addContactId,
+      p_role: addRole || null,
+    })
+    setContactBusy(false)
+    if (error || !res?.is_success) { toast.error(error ?? res?.message ?? 'Failed to add contact'); return }
+    toast.success(res.message ?? 'Contact added')
+    setAddContactId(''); setAddRole('')
+    refreshContacts()
+  }
+
+  const removeContact = async (id: number) => {
+    if (!detail) return
+    setContactBusy(true)
+    const { data: res, error } = await HttpHelper.rpc(FN_REMOVE_CONTACT, {
+      p_deal_id: detail.deal.id,
+      p_contact_id: id,
+    })
+    setContactBusy(false)
+    if (error || !res?.is_success) { toast.error(error ?? res?.message ?? 'Failed to remove contact'); return }
+    toast.success(res.message ?? 'Contact removed')
+    if (contactId === id) setContactId('') // server cleared the deal's primary pointer
+    refreshContacts()
+  }
 
   const save = async () => {
     if (!detail) return
@@ -203,19 +260,19 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3.5">
 
               <label className="flex flex-col gap-1">
-                <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Deal name *</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Deal Name<span className="ml-0.5" style={{ color: '#ef4444' }}>*</span></span>
                 <input value={name} onChange={e => setName(e.target.value)}
                   className="text-[13px] rounded-lg px-3 py-2 border" style={inputStyle} />
               </label>
 
-              <div className="grid grid-cols-[1fr_100px] gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Amount</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Amount</span>
                   <input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)}
                     className="text-[13px] rounded-lg px-3 py-2 border" style={inputStyle} />
                 </label>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Currency</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Currency</span>
                   <SearchableDropdown
                     options={CURRENCIES.map(c => ({ id: c, name: c }))}
                     value={currency}
@@ -227,7 +284,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Stage</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Stage</span>
                   <SearchableDropdown
                     options={stages}
                     value={stageId === '' ? null : stageId}
@@ -236,7 +293,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
                   />
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Expected close</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Expected close</span>
                   <input type="date" value={closeDate} onChange={e => setCloseDate(e.target.value)}
                     className="text-[13px] rounded-lg px-3 py-2 border" style={inputStyle} />
                 </label>
@@ -244,7 +301,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
 
               {selectedStageIsLost && (
                 <label className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-primary)' }}>Lost reason</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-primary)' }}>Lost Reason</span>
                   <textarea value={lostReason} onChange={e => setLostReason(e.target.value)} rows={2}
                     placeholder="Why was this deal lost?"
                     className="text-[13px] rounded-lg px-3 py-2 border resize-none"
@@ -254,7 +311,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Account</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Account</span>
                   <SearchableDropdown
                     options={options?.accounts ?? []}
                     value={accountId === '' ? null : accountId}
@@ -263,7 +320,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Primary contact</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Primary contact</span>
                   <SearchableDropdown
                     options={filteredContacts}
                     value={contactId === '' ? null : contactId}
@@ -275,7 +332,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Owner</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Owner</span>
                   <SearchableDropdown
                     options={options?.owners ?? []}
                     value={ownerId === '' ? null : ownerId}
@@ -284,7 +341,7 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Lead source</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Lead source</span>
                   <SearchableDropdown
                     options={LEAD_SOURCES.map(s => ({ id: s, name: s }))}
                     value={leadSource || null}
@@ -295,10 +352,75 @@ export function DealDrawer({ dealId, onClose, onChanged }: Props) {
               </div>
 
               <label className="flex flex-col gap-1">
-                <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Description</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Description</span>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
                   className="text-[13px] rounded-lg px-3 py-2 border resize-none" style={inputStyle} />
               </label>
+
+              {/* Deal contacts */}
+              <div className="mt-1">
+                <div className="text-[12px] font-semibold mb-2" style={{ color: 'var(--c-t2)' }}>
+                  Contacts <span className="font-normal" style={{ color: 'var(--c-t4)' }}>({detail.deal_contacts.length})</span>
+                </div>
+                <div className="rounded-xl border px-3.5 py-3 flex flex-col gap-2.5" style={{ borderColor: 'var(--c-border)' }}>
+                  {detail.deal_contacts.map(dc => (
+                    <div key={dc.contact_id} className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-medium truncate" style={{ color: 'var(--c-t1)' }}>
+                          {dc.name}
+                          {dc.is_primary && (
+                            <span className="text-[10px] font-medium rounded-full px-2 py-px ml-1.5"
+                              style={{ background: 'rgba(22,163,74,.12)', color: '#16a34a' }}>primary</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>
+                          {[dc.role, dc.job_title, dc.email].filter(Boolean).join(' · ') || '—'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeContact(dc.contact_id)}
+                        disabled={contactBusy}
+                        title="Remove from deal"
+                        className="p-1 rounded-md transition hover:opacity-70 disabled:opacity-40 flex-none"
+                        style={{ color: 'var(--c-t4)' }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {detail.deal_contacts.length === 0 && (
+                    <div className="text-[12px]" style={{ color: 'var(--c-t4)' }}>No contacts on this deal yet</div>
+                  )}
+
+                  {/* Add contact row */}
+                  <div className="flex items-center gap-2 pt-2.5 border-t" style={{ borderColor: 'var(--c-border)' }}>
+                    <div className="flex-1 min-w-0">
+                      <SearchableDropdown
+                        options={(options?.contacts ?? []).filter(c => !detail.deal_contacts.some(dc => dc.contact_id === c.id))}
+                        value={addContactId === '' ? null : addContactId}
+                        onChange={v => setAddContactId(v == null ? '' : Number(v))}
+                        placeholder="Add contact…"
+                      />
+                    </div>
+                    <div className="w-[130px] flex-none">
+                      <SearchableDropdown
+                        options={CONTACT_ROLES.map(r => ({ id: r, name: r }))}
+                        value={addRole || null}
+                        onChange={v => setAddRole(v == null ? '' : String(v))}
+                        placeholder="Role"
+                      />
+                    </div>
+                    <button
+                      onClick={addContact}
+                      disabled={contactBusy || addContactId === ''}
+                      title="Add contact to deal"
+                      className="btn-primary p-2 rounded-lg flex-none disabled:opacity-50"
+                    >
+                      {contactBusy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Timeline */}
               <div className="mt-1">

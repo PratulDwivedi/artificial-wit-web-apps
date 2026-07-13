@@ -9,6 +9,7 @@ import { useAppStore } from '@/lib/store'
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Dashboard {
+  base_currency: string
   kpis: {
     open_value: number; weighted_value: number
     won_qtr_value: number; won_qtr_count: number
@@ -26,8 +27,8 @@ const FN_DASHBOARD = 'crm.fn_get_crm_dashboard'
 
 const SOURCE_COLORS = ['var(--c-primary)', '#d97706', '#2563eb', '#16a34a', '#9ca3af', '#7c3aed']
 
-const fmtINR = (n: number | null) =>
-  n === null || n === undefined ? '—' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format(n)
+const fmtMoney = (n: number | null, currency = 'INR') =>
+  n === null || n === undefined ? '—' : new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(n)
 
 const timeAgo = (iso: string) => {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
@@ -63,6 +64,10 @@ export function CrmDashboardPage() {
     )
   }
   if (!data) return null
+
+  // Aggregates come converted to the tenant base currency; per-deal rows keep native currency
+  const cur = data.base_currency ?? 'INR'
+  const fmtINR = (n: number | null) => fmtMoney(n, cur)
 
   const maxFunnelValue = Math.max(...data.funnel.map(f => f.deal_value), 1)
   const totalSources = data.lead_sources.reduce((a, s) => a + s.cnt, 0) || 1
@@ -162,7 +167,7 @@ export function CrmDashboardPage() {
               <div key={d.id} className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="text-[12.5px] font-semibold truncate" style={{ color: 'var(--c-t1)' }}>{d.name}</div>
-                  <div className="text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>{[d.account_name, fmtINR(d.amount)].filter(Boolean).join(' · ')}</div>
+                  <div className="text-[11px] truncate" style={{ color: 'var(--c-t4)' }}>{[d.account_name, fmtMoney(d.amount, d.currency)].filter(Boolean).join(' · ')}</div>
                 </div>
                 <span className="text-[11px] font-medium rounded-full px-2.5 py-0.5 flex-none" style={
                   d.days_left < 0

@@ -136,7 +136,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
         {/* Body */}
         <div className="px-5 py-4 overflow-y-auto flex flex-col gap-3.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Deal name *</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Deal Name<span className="ml-0.5" style={{ color: '#ef4444' }}>*</span></span>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -149,7 +149,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Account</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Account</span>
               <SearchableDropdown
                 options={options?.accounts ?? []}
                 value={accountId === '' ? null : accountId}
@@ -159,7 +159,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
             </div>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Primary contact</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Primary contact</span>
               <SearchableDropdown
                 options={filteredContacts}
                 value={contactId === '' ? null : contactId}
@@ -171,7 +171,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Pipeline</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Pipeline</span>
               <SearchableDropdown
                 options={options?.pipelines ?? []}
                 value={pipelineId === '' ? null : pipelineId}
@@ -187,7 +187,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
             </div>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Stage</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Stage</span>
               <SearchableDropdown
                 options={pipeline?.stages ?? []}
                 value={stageId === '' ? null : stageId}
@@ -197,9 +197,9 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
             </div>
           </div>
 
-          <div className="grid grid-cols-[1fr_110px] gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Amount</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Amount</span>
               <input
                 type="number"
                 min="0"
@@ -212,7 +212,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
             </label>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Currency</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Currency</span>
               <SearchableDropdown
                 options={CURRENCIES.map(c => ({ id: c, name: c }))}
                 value={currency}
@@ -224,7 +224,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Expected close date</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Expected close date</span>
               <input
                 type="date"
                 value={closeDate}
@@ -235,7 +235,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
             </label>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Lead source</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Lead source</span>
               <SearchableDropdown
                 options={LEAD_SOURCES.map(s => ({ id: s, name: s }))}
                 value={leadSource || null}
@@ -246,7 +246,7 @@ export function NewDealModal({ open, defaultPipelineId, onClose, onCreated }: Pr
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="text-[12px] font-medium" style={{ color: 'var(--c-t3)' }}>Owner</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--c-t4)' }}>Owner</span>
             <SearchableDropdown
               options={options?.owners ?? []}
               value={ownerId === '' ? null : ownerId}

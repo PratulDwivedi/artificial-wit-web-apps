@@ -30,6 +30,8 @@ interface Deal {
   name: string
   amount: number | null
   currency: string
+  /** amount converted to the tenant base currency via crm.currency_rates */
+  base_amount: number | null
   probability: number | null
   status: 'open' | 'won' | 'lost'
   stage_id: number
@@ -56,6 +58,7 @@ interface Kpis {
 }
 
 interface KanbanData {
+  base_currency: string
   pipelines: Pipeline[]
   pipeline_id: number
   stages: Stage[]
@@ -104,6 +107,7 @@ export function DealsKanbanPage() {
   const [pipelineId, setPipelineId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [ownerId, setOwnerId] = useState<number | ''>('')
+  const [dueFilter, setDueFilter] = useState<'' | 'overdue' | 'this_month' | 'this_quarter'>('')
   const [dragOverStage, setDragOverStage] = useState<number | null>(null)
   const { setSidebarOpen } = useAppStore()
   const [showNewDeal, setShowNewDeal] = useState(false)
@@ -133,23 +137,39 @@ export function DealsKanbanPage() {
   const visibleDeals = useMemo(() => {
     if (!data) return []
     const q = search.trim().toLowerCase()
+    const now = new Date()
+    const quarter = Math.floor(now.getMonth() / 3)
+    const matchesDue = (d: Deal): boolean => {
+      if (!dueFilter) return true
+      if (!d.expected_close_date) return false
+      const due = new Date(d.expected_close_date)
+      switch (dueFilter) {
+        case 'overdue':      return d.status === 'open' && due < now
+        case 'this_month':   return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth()
+        case 'this_quarter': return due.getFullYear() === now.getFullYear() && Math.floor(due.getMonth() / 3) === quarter
+        default:             return true
+      }
+    }
     return data.deals.filter(d =>
       (!q || d.name.toLowerCase().includes(q) || (d.account_name ?? '').toLowerCase().includes(q)) &&
-      (ownerId === '' || d.owner_id === ownerId)
+      (ownerId === '' || d.owner_id === ownerId) &&
+      matchesDue(d)
     )
-  }, [data, search, ownerId])
+  }, [data, search, ownerId, dueFilter])
 
+  // KPIs are aggregated in the tenant base currency (base_amount = amount × rate)
   const kpis = useMemo(() => {
     const open = visibleDeals.filter(d => d.status === 'open')
+    const val = (d: Deal) => d.base_amount ?? d.amount ?? 0
     return {
-      openValue: open.reduce((a, d) => a + (d.amount ?? 0), 0),
-      weighted:  open.reduce((a, d) => a + (d.amount ?? 0) * (d.probability ?? 0) / 100, 0),
-      wonValue:  visibleDeals.filter(d => d.status === 'won').reduce((a, d) => a + (d.amount ?? 0), 0),
+      openValue: open.reduce((a, d) => a + val(d), 0),
+      weighted:  open.reduce((a, d) => a + val(d) * (d.probability ?? 0) / 100, 0),
+      wonValue:  visibleDeals.filter(d => d.status === 'won').reduce((a, d) => a + val(d), 0),
       openCount: open.length,
     }
   }, [visibleDeals])
 
-  const currency = data?.deals[0]?.currency ?? 'INR'
+  const currency = data?.base_currency ?? 'INR'
 
   // ── Drag & drop ──────────────────────────────────────────────────────────────
 
@@ -260,9 +280,9 @@ export function DealsKanbanPage() {
         </div>
       </div>
 
-      {/* ── Filter row ── */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-wrap px-4 sm:px-6 pt-3">
-        <div className="relative flex-1 min-w-[160px] sm:max-w-[280px]">
+      {/* ── Filter row — 4 columns matching the KPI grid below ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 px-4 sm:px-6 pt-3">
+        <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 z-[1]" style={{ color: 'var(--c-t5)' }} />
           <input
             value={search}
@@ -273,23 +293,30 @@ export function DealsKanbanPage() {
           />
         </div>
 
-        <div className="w-[calc(50%-0.75rem)] sm:w-[210px]">
-          <SearchableDropdown
-            options={(data?.pipelines ?? []).map(p => ({ id: p.id, name: `${p.name}${p.is_default ? ' (default)' : ''}` }))}
-            value={pipelineId}
-            onChange={v => { if (v != null) load(Number(v)) }}
-            placeholder="Pipeline"
-          />
-        </div>
+        <SearchableDropdown
+          options={(data?.pipelines ?? []).map(p => ({ id: p.id, name: `${p.name}${p.is_default ? ' (default)' : ''}` }))}
+          value={pipelineId}
+          onChange={v => { if (v != null) load(Number(v)) }}
+          placeholder="Pipeline"
+        />
 
-        <div className="w-[calc(50%-0.75rem)] sm:w-[180px]">
-          <SearchableDropdown
-            options={(data?.owners ?? []).map(o => ({ id: o.id, name: o.name ?? `User #${o.id}` }))}
-            value={ownerId === '' ? null : ownerId}
-            onChange={v => setOwnerId(v == null ? '' : Number(v))}
-            placeholder="All owners"
-          />
-        </div>
+        <SearchableDropdown
+          options={(data?.owners ?? []).map(o => ({ id: o.id, name: o.name ?? `User #${o.id}` }))}
+          value={ownerId === '' ? null : ownerId}
+          onChange={v => setOwnerId(v == null ? '' : Number(v))}
+          placeholder="All owners"
+        />
+
+        <SearchableDropdown
+          options={[
+            { id: 'overdue',      name: 'Overdue' },
+            { id: 'this_month',   name: 'Closing this month' },
+            { id: 'this_quarter', name: 'Closing this quarter' },
+          ]}
+          value={dueFilter || null}
+          onChange={v => setDueFilter((v == null ? '' : String(v)) as typeof dueFilter)}
+          placeholder="Close date"
+        />
       </div>
 
       {/* ── KPI strip ── */}
@@ -318,7 +345,7 @@ export function DealsKanbanPage() {
       >
         {data?.stages.map(stage => {
           const stageDeals = visibleDeals.filter(d => d.stage_id === stage.id)
-          const total = stageDeals.reduce((a, d) => a + (d.amount ?? 0), 0)
+          const total = stageDeals.reduce((a, d) => a + (d.base_amount ?? d.amount ?? 0), 0)
           return (
             <div
               key={stage.id}

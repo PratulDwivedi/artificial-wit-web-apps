@@ -191,11 +191,11 @@ export function Account360Page() {
           ))}
         </div>
 
-        {/* Columns */}
-        <div className="flex gap-4 px-4 sm:px-6 pb-6 items-start flex-wrap lg:flex-nowrap">
+        {/* Columns — aligned to the same 4-col grid as the KPI cards (1 / 2 / 1) */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 sm:gap-3 px-4 sm:px-6 pb-6 items-start">
 
           {/* Contacts */}
-          <div className="w-full lg:w-[280px] lg:flex-none flex flex-col gap-2.5">
+          <div className="lg:col-span-1 flex flex-col gap-2.5">
             <div className="text-[13px] font-semibold px-0.5" style={{ color: 'var(--c-t1)' }}>Contacts</div>
             {detail.contacts.map(c => (
               <div key={c.id} className="rounded-xl border px-3.5 py-3 flex items-center gap-2.5" style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
@@ -213,7 +213,7 @@ export function Account360Page() {
           </div>
 
           {/* Deals */}
-          <div className="flex-1 min-w-[280px] flex flex-col gap-2.5">
+          <div className="lg:col-span-2 flex flex-col gap-2.5">
             <div className="text-[13px] font-semibold px-0.5" style={{ color: 'var(--c-t1)' }}>Deals</div>
             {detail.deals.map(d => (
               <div key={d.id} className="rounded-xl border px-4 py-3" style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)', opacity: d.status === 'open' ? 1 : 0.75 }}>
@@ -240,7 +240,7 @@ export function Account360Page() {
           </div>
 
           {/* Timeline */}
-          <div className="w-full lg:w-[300px] lg:flex-none flex flex-col gap-2.5">
+          <div className="lg:col-span-1 flex flex-col gap-2.5">
             <div className="text-[13px] font-semibold px-0.5" style={{ color: 'var(--c-t1)' }}>Activity timeline</div>
             <div className="rounded-xl border px-4 py-3.5" style={{ background: 'var(--c-panel)', borderColor: 'var(--c-border)' }}>
               {detail.timeline.map((t, i) => (
