@@ -80,4 +80,9 @@ export interface RpcEnvelope<T = unknown> {
   data: T
   message: string
   status_code?: number
+  paging?: {
+    page_size: number
+    page_index: number
+    total_records: number
+  }
 }

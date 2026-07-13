@@ -10,6 +10,7 @@ import {
   Pencil, Plus, Trash2,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { toast } from 'sonner'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
@@ -40,6 +41,32 @@ function resolvePath(row: Row, path: string): unknown {
 
 function buildUrl(template: string, row: Row): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(row[key] ?? ''))
+}
+
+/**
+ * Build RPC params for a functionCall control from its data.params template.
+ * String values that are exactly "{field}" pass the raw row value through
+ * (preserving numbers/booleans); other strings get {field} substitution;
+ * non-string values (booleans, numbers) are passed as-is.
+ */
+function buildFnParams(template: Record<string, unknown> | undefined, row: Row): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(template ?? {})) {
+    if (typeof val === 'string') {
+      const exact = val.match(/^\{([\w.]+)\}$/)
+      out[key] = exact ? resolvePath(row, exact[1]) : buildUrl(val, row)
+    } else {
+      out[key] = val
+    }
+  }
+  return out
+}
+
+/** True when every key in data.hide_when matches the row's value (loose string compare). */
+function isHiddenByRule(hideWhen: unknown, row: Row): boolean {
+  if (!hideWhen || typeof hideWhen !== 'object') return false
+  const entries = Object.entries(hideWhen as Record<string, unknown>)
+  return entries.length > 0 && entries.every(([k, v]) => String(resolvePath(row, k)) === String(v))
 }
 
 function cellStr(val: unknown): string {
@@ -266,13 +293,15 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const [viewRow,      setViewRow]      = useState<Row | null>(null)
   const [deleteRow,    setDeleteRow]    = useState<{ row: Row; bindingName: string } | null>(null)
   const [deleting,     setDeleting]     = useState(false)
+  const [fnCallRow,    setFnCallRow]    = useState<{ row: Row; col: PageSection['controls'][number] } | null>(null)
+  const [fnCalling,    setFnCalling]    = useState(false)
   const [refetchKey,   setRefetchKey]   = useState(0)
 
   const allControls      = [...(section.controls ?? [])].sort((a, b) => a.display_order - b.display_order)
   const columns          = allControls.filter(c =>
     c.display_mode_id !== control_display_modes.none_hidden || editMode
   )
-  const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow, control_types.deleteTableRow])
+  const ACTION_TYPES     = new Set<number>([control_types.hyperlink, control_types.hyperlinkRow, control_types.deleteTableRow, control_types.functionCall])
 
   // hyperlinkRow (33) controls → toolbar bulk-action buttons, never table columns
   const hyperlinkRowCols = columns.filter(c => c.control_type_id === control_types.hyperlinkRow)
@@ -313,19 +342,43 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   // Section-level binding_name takes priority; fall back to page-level binding_name_get
   const fetchRpc = section.binding_name ?? schema.binding_name_get
 
+  // Server-side pagination — opt in via section.data.server_paging = true.
+  // The binding fn then receives p_page_index / p_page_size / p_search / p_sort_by /
+  // p_sort_dir and must return total_records in the envelope's paging block.
+  const serverPaging = section.data?.server_paging === true
+  const [serverTotal, setServerTotal] = useState(0)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
   useEffect(() => {
     if (!fetchRpc || !expanded) return
     setLoading(true); setError(null)
-    HttpHelper.rpc(fetchRpc, {})
+    const params: Record<string, unknown> = serverPaging
+      ? {
+          p_page_index: page,
+          p_page_size:  pageSize,
+          p_search:     debouncedSearch || undefined,
+          p_sort_by:    sortKey || undefined,
+          p_sort_dir:   sortKey ? sortDir : undefined,
+        }
+      : {}
+    HttpHelper.rpc(fetchRpc, params)
       .then(({ data, error: err }) => {
         if (err) { setError(err); return }
         const env = data as unknown as RpcEnvelope<Row[]>
-        if (env?.is_success) setRows(Array.isArray(env.data) ? env.data : [])
-        else setError(env?.message ?? 'Failed to load data')
+        if (env?.is_success) {
+          setRows(Array.isArray(env.data) ? env.data : [])
+          if (serverPaging) setServerTotal(env.paging?.total_records ?? (Array.isArray(env.data) ? env.data.length : 0))
+        } else setError(env?.message ?? 'Failed to load data')
       })
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchRpc, expanded, viewTrigger, refetchKey])
+  }, [fetchRpc, expanded, viewTrigger, refetchKey,
+      serverPaging && page, serverPaging && pageSize, serverPaging && debouncedSearch,
+      serverPaging && sortKey, serverPaging && sortDir])
 
   // Reset to page 1 whenever filters / sort / page size change
   useEffect(() => { setPage(1) }, [search, colFilters, sortKey, sortDir, pageSize])
@@ -333,7 +386,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const processed = useMemo(() => {
     let data = [...rows]
 
-    if (search.trim()) {
+    // Server mode: search + sort already applied by the backend; only column
+    // filters remain client-side (they act on the current page).
+    if (!serverPaging && search.trim()) {
       const q = search.toLowerCase()
       data = data.filter(row =>
         dataCols.some(col => cellStr(resolvePath(row, col.binding_name)).toLowerCase().includes(q))
@@ -346,7 +401,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
       data = data.filter(row => cellStr(resolvePath(row, key)).toLowerCase().includes(q))
     }
 
-    if (sortKey) {
+    if (!serverPaging && sortKey) {
       data.sort((a, b) => {
         const av = cellStr(resolvePath(a, sortKey))
         const bv = cellStr(resolvePath(b, sortKey))
@@ -360,10 +415,11 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
 
     return data
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, search, colFilters, sortKey, sortDir])
+  }, [rows, search, colFilters, sortKey, sortDir, serverPaging])
 
-  const totalPages = Math.max(1, Math.ceil(processed.length / pageSize))
-  const pageRows   = processed.slice((page - 1) * pageSize, page * pageSize)
+  const totalRecords = serverPaging ? serverTotal : processed.length
+  const totalPages   = Math.max(1, Math.ceil(totalRecords / pageSize))
+  const pageRows     = serverPaging ? processed : processed.slice((page - 1) * pageSize, page * pageSize)
 
   function handleSort(bindingName: string) {
     if (sortKey === bindingName) {
@@ -422,7 +478,11 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
     XLSX.writeFile(wb, `${section.name ?? 'export'}.xlsx`)
   }
 
-  const toolbar = rows.length > 0 && (
+  // Keep the toolbar mounted while a search/filter is active even if the current
+  // result set is empty — otherwise a no-match server-side search would unmount
+  // the search box and trap the user with no way to clear it.
+  const filtersActive = search.trim() !== '' || Object.values(colFilters).some(v => v.trim() !== '')
+  const toolbar = (rows.length > 0 || filtersActive) && (
     <div className="flex flex-wrap items-center gap-2 px-4 py-2.5"
       style={{ borderBottom: '1px solid var(--c-border)' }}>
       {/* Global search */}
@@ -510,7 +570,9 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
       {toolbar}
       <div className="overflow-x-auto">
         {rows.length === 0 ? (
-          <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>No records found</p>
+          <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>
+            {filtersActive ? 'No records match your search' : 'No records found'}
+          </p>
         ) : processed.length === 0 ? (
           <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>No records match your search</p>
         ) : (
@@ -692,6 +754,29 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
                           </td>
                         )
                       }
+                      if (col.control_type_id === control_types.functionCall) {
+                        // Hidden for rows matching data.hide_when (e.g. already-converted leads)
+                        if (isHiddenByRule(col.data?.hide_when, row)) {
+                          return <td key={col.id} style={{ width: 32, padding: 0 }} />
+                        }
+                        const fnColor = (col.data?.item_color as string) ?? 'var(--c-primary)'
+                        const FnIcon  = resolveIcon(col.data?.item_icon as string | undefined)
+                        return (
+                          <td key={col.id} className="text-center" style={{ width: 32, padding: 0 }}
+                            onClick={e => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setFnCallRow({ row, col })}
+                              title={col.name}
+                              className="inline-flex items-center justify-center p-1 rounded-lg transition"
+                              style={{ color: fnColor, background: `${fnColor}10` }}
+                              onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
+                              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                              <FnIcon size={13} />
+                            </button>
+                          </td>
+                        )
+                      }
                       if (ACTION_TYPES.has(col.control_type_id)) {
                         return (
                           <td key={col.id} className="text-center" style={{ width: 32, padding: 0 }}
@@ -726,11 +811,11 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
           </table>
         )}
       </div>
-      {processed.length > 0 && (
+      {totalRecords > 0 && (
         <Pagination
           page={page}
           totalPages={totalPages}
-          total={processed.length}
+          total={totalRecords}
           pageSize={pageSize}
           onPage={setPage}
           onPageSize={setPageSize}
@@ -750,6 +835,39 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   )
 
   const body = loading ? loadingEl : error ? errorEl : tableContent
+
+  // Confirm dialog for functionCall row actions (shared by both render branches)
+  const fnCallDialog = (
+    <ConfirmDialog
+      open={!!fnCallRow}
+      title={fnCallRow?.col.name ?? 'Run action'}
+      message={fnCallRow
+        ? buildUrl(String(fnCallRow.col.data?.confirm_message ?? `Run "${fnCallRow.col.name}" for record #{id}?`), fnCallRow.row)
+        : ''}
+      confirmLabel={fnCalling ? 'Working…' : String(fnCallRow?.col.data?.confirm_label ?? 'Confirm')}
+      variant={(fnCallRow?.col.data?.variant as 'danger' | 'warning' | 'default' | undefined) ?? 'default'}
+      onConfirm={() => {
+        if (!fnCallRow || fnCalling) return
+        const fnName = String(fnCallRow.col.data?.fn_name ?? '')
+        if (!fnName) { setFnCallRow(null); return }
+        setFnCalling(true)
+        HttpHelper.rpc(fnName, buildFnParams(fnCallRow.col.data?.params as Record<string, unknown> | undefined, fnCallRow.row))
+          .then(({ data, error: err }) => {
+            const env = data as { is_success?: boolean; message?: string } | null
+            if (err || !env?.is_success) {
+              toast.error(err ?? env?.message ?? 'Action failed')
+            } else {
+              toast.success(env.message ?? 'Action completed')
+              if (fetchRpc) HttpHelper.rpcInvalidate(fetchRpc, {})
+              setRefetchKey(k => k + 1)
+            }
+            setFnCallRow(null)
+          })
+          .finally(() => setFnCalling(false))
+      }}
+      onCancel={() => setFnCallRow(null)}
+    />
+  )
 
   if (isNoneMode) return (
     <div className="relative">
@@ -791,6 +909,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
         }}
         onCancel={() => setDeleteRow(null)}
       />
+      {fnCallDialog}
       {acOpen && (
         <AccessControl
           resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}
@@ -873,6 +992,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
         }}
         onCancel={() => setDeleteRow(null)}
       />
+      {fnCallDialog}
       {acOpen && (
         <AccessControl
           resourceName={String(resolvePath(acOpen.row, 'name') ?? resolvePath(acOpen.row, 'title') ?? `Record #${resolvePath(acOpen.row, 'id')}`)}

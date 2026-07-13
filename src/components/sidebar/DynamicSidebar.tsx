@@ -65,7 +65,9 @@ function TreeNode({
   const hasChildren = item.children && item.children.length > 0
   const [open, setOpen] = useState(false)
   const isActive = !hasChildren && activeRoute === item.route_name
-  const pl = 8 + depth * 14
+  // Leaf nodes under a parent get extra indent (chevron width + gap) so they
+  // read visually as children rather than aligning with the parent row.
+  const pl = 8 + depth * 14 + (!hasChildren && depth > 0 ? 17 : 0)
 
   if (hasChildren) {
     const FolderIcon = resolveIcon(item.data?.item_icon ?? null, open ? FolderOpen : Folder)
