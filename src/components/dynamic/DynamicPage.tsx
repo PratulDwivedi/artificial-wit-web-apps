@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { AlertCircle, Eye, Loader2, Menu, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
@@ -150,11 +151,9 @@ export function DynamicPage({ routeName }: Props) {
   const [loading,    setLoading]   = useState(true)
   const [error,      setError]     = useState<string | null>(null)
   const [isSaving,   setIsSaving]  = useState(false)
-  const [saveMsg,    setSaveMsg]   = useState<{ text: string; ok: boolean } | null>(null)
   const [viewTrigger,  setViewTrigger]  = useState(0)
   const [formResetKey, setFormResetKey] = useState(0)
   const [deleting,        setDeleting]        = useState(false)
-  const [deleteMsg,       setDeleteMsg]       = useState<{ text: string; ok: boolean } | null>(null)
   const [pendingDelete,   setPendingDelete]   = useState<string | null>(null)
   // Pre-fetched record data loaded at page level so form + table sections share one RPC call
   const [initialRecordData, setInitialRecordData] = useState<Record<string, unknown> | null>(null)
@@ -230,8 +229,6 @@ export function DynamicPage({ routeName }: Props) {
     sectionDataRef.current = new Map()
     setSharedData({})
     setFormResetKey(k => k + 1)
-    setSaveMsg(null)
-    setDeleteMsg(null)
   }, [])
 
   // Open the slide-over with an empty form for a new record (panel mode only)
@@ -241,15 +238,13 @@ export function DynamicPage({ routeName }: Props) {
     sectionDataRef.current = new Map()
     setSharedData({})
     setFormResetKey(k => k + 1)
-    setSaveMsg(null)
-    setDeleteMsg(null)
     setPanelOpen(true)
   }, [])
 
   // Single page-level save — builds payload from schema controls across all sections
   const handleSave = useCallback(async () => {
     if (!schema?.binding_name_post) return
-    setIsSaving(true); setSaveMsg(null)
+    setIsSaving(true)
     try {
       const payload = buildPayload(
         schema,
@@ -261,7 +256,7 @@ export function DynamicPage({ routeName }: Props) {
       if (error) throw new Error(error)
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Save failed')
-      setSaveMsg({ text: env.message ?? 'Saved successfully', ok: true })
+      toast.success(env.message ?? 'Saved successfully')
       setViewTrigger(n => n + 1)
       if (schema.data?.open_mode === 'panel') {
         // Panel mode: refresh the table behind, then close the slide-over
@@ -276,7 +271,7 @@ export function DynamicPage({ routeName }: Props) {
         setFormResetKey(k => k + 1)
       }
     } catch (e) {
-      setSaveMsg({ text: e instanceof Error ? e.message : 'Save failed', ok: false })
+      toast.error(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setIsSaving(false)
     }
@@ -284,14 +279,14 @@ export function DynamicPage({ routeName }: Props) {
 
   const handleDelete = useCallback(async (bindingName: string) => {
     if (!activeRecordId) return
-    setDeleting(true); setDeleteMsg(null)
+    setDeleting(true)
     try {
       const ids = activeRecordId.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
       const { data, error: err } = await HttpHelper.rpc(bindingName, { p_id: ids.length === 1 ? ids[0] : ids })
       if (err) throw new Error(err)
       const env = data as unknown as RpcEnvelope
       if (!env?.is_success) throw new Error(env?.message ?? 'Delete failed')
-      setDeleteMsg({ text: env.message ?? 'Deleted successfully', ok: true })
+      toast.success(env.message ?? 'Deleted successfully')
       if (schema?.data?.open_mode === 'panel') {
         setViewTrigger(n => n + 1)
         setTimeout(() => closePanel(), 900)
@@ -299,7 +294,7 @@ export function DynamicPage({ routeName }: Props) {
         setTimeout(() => router.back(), 1200)
       }
     } catch (e) {
-      setDeleteMsg({ text: e instanceof Error ? e.message : 'Delete failed', ok: false })
+      toast.error(e instanceof Error ? e.message : 'Delete failed')
     } finally {
       setDeleting(false)
     }
@@ -458,26 +453,6 @@ export function DynamicPage({ routeName }: Props) {
         </div>
       </div>
 
-      {/* Save feedback banner */}
-      {saveMsg && (
-        <div className="shrink-0 px-6 py-2.5 text-[12px] border-b"
-          style={saveMsg.ok
-            ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
-            : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
-          {saveMsg.text}
-        </div>
-      )}
-
-      {/* Delete feedback banner */}
-      {deleteMsg && (
-        <div className="shrink-0 px-6 py-2.5 text-[12px] border-b"
-          style={deleteMsg.ok
-            ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
-            : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
-          {deleteMsg.text}
-        </div>
-      )}
-
       {/* ── Scrollable content — 16-col dynamic grid ───────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="dyn-grid p-5" style={{ gap: '20px' }}>
@@ -526,24 +501,6 @@ export function DynamicPage({ routeName }: Props) {
                 <X size={16} />
               </button>
             </div>
-
-            {/* Panel feedback banners */}
-            {saveMsg && (
-              <div className="shrink-0 px-5 py-2.5 text-[12px] border-b"
-                style={saveMsg.ok
-                  ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
-                  : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
-                {saveMsg.text}
-              </div>
-            )}
-            {deleteMsg && (
-              <div className="shrink-0 px-5 py-2.5 text-[12px] border-b"
-                style={deleteMsg.ok
-                  ? { background: 'rgba(22,163,74,0.08)', color: '#16a34a', borderColor: 'rgba(22,163,74,0.2)' }
-                  : { background: 'rgba(220,38,38,0.08)', color: '#ef4444', borderColor: 'rgba(220,38,38,0.2)' }}>
-                {deleteMsg.text}
-              </div>
-            )}
 
             {/* Panel body — editable sections stacked full-width */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
