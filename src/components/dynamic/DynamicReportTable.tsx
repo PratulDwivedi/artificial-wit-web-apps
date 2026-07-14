@@ -311,26 +311,35 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const fetchRpc = section.binding_name ?? schema.binding_name_get
 
   // Server-side pagination — opt in via section.data.server_paging = true.
-  // The binding fn then receives p_page_index / p_page_size / p_search / p_sort_by /
-  // p_sort_dir and must return total_records in the envelope's paging block.
+  // The binding fn then receives p_filter / p_paging / p_sorting / p_search and must
+  // return total_records in the envelope's paging block.
+  //   p_paging  → { page_index, page_size }
+  //   p_filter  → { [binding_name]: value } built from the per-column Filters row
+  //   p_sorting → { sort_by, sort_dir }
+  //   p_search  → debounced free-text from the global search box
   const serverPaging = section.data?.server_paging === true
   const [serverTotal, setServerTotal] = useState(0)
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debouncedColFilters, setDebouncedColFilters] = useState<Record<string, string>>({})
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
     return () => clearTimeout(t)
   }, [search])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedColFilters(colFilters), 400)
+    return () => clearTimeout(t)
+  }, [colFilters])
 
   useEffect(() => {
     if (!fetchRpc || !expanded) return
     setLoading(true); setError(null)
+    const filterEntries = Object.entries(debouncedColFilters).filter(([, v]) => v.trim() !== '')
     const params: Record<string, unknown> = serverPaging
       ? {
-          p_page_index: page,
-          p_page_size:  pageSize,
-          p_search:     debouncedSearch || undefined,
-          p_sort_by:    sortKey || undefined,
-          p_sort_dir:   sortKey ? sortDir : undefined,
+          p_filter:  filterEntries.length > 0 ? Object.fromEntries(filterEntries) : undefined,
+          p_paging:  { page_index: page, page_size: pageSize },
+          p_sorting: sortKey ? { sort_by: sortKey, sort_dir: sortDir } : undefined,
+          p_search:  debouncedSearch || undefined,
         }
       : {}
     HttpHelper.rpc(fetchRpc, params)
@@ -345,8 +354,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchRpc, expanded, viewTrigger, refetchKey,
-      serverPaging && page, serverPaging && pageSize, serverPaging && debouncedSearch,
-      serverPaging && sortKey, serverPaging && sortDir])
+      serverPaging && page, serverPaging && pageSize, serverPaging && debouncedColFilters,
+      serverPaging && debouncedSearch, serverPaging && sortKey, serverPaging && sortDir])
 
   // Reset to page 1 whenever filters / sort / page size change
   useEffect(() => { setPage(1) }, [search, colFilters, sortKey, sortDir, pageSize])
@@ -354,8 +363,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const processed = useMemo(() => {
     let data = [...rows]
 
-    // Server mode: search + sort already applied by the backend; only column
-    // filters remain client-side (they act on the current page).
+    // Server mode: filter + search + sort already applied by the backend.
     if (!serverPaging && search.trim()) {
       const q = search.toLowerCase()
       data = data.filter(row =>
@@ -363,10 +371,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
       )
     }
 
-    for (const [key, val] of Object.entries(colFilters)) {
-      if (!val.trim()) continue
-      const q = val.toLowerCase()
-      data = data.filter(row => cellStr(resolvePath(row, key)).toLowerCase().includes(q))
+    if (!serverPaging) {
+      for (const [key, val] of Object.entries(colFilters)) {
+        if (!val.trim()) continue
+        const q = val.toLowerCase()
+        data = data.filter(row => cellStr(resolvePath(row, key)).toLowerCase().includes(q))
+      }
     }
 
     if (!serverPaging && sortKey) {
@@ -453,7 +463,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const toolbar = (rows.length > 0 || filtersActive) && (
     <div className="flex flex-wrap items-center gap-2 px-4 py-2.5"
       style={{ borderBottom: '1px solid var(--c-border)' }}>
-      {/* Global search */}
+      {/* Global search — client-side tables filter locally; server_paging sections send the
+          debounced value as p_search. */}
       <div className="relative flex-1 min-w-[160px]">
         <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
           style={{ color: 'var(--c-t4)' }} />

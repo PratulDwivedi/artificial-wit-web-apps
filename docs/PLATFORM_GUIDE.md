@@ -94,10 +94,15 @@ Implemented in `DynamicPage.tsx` (`panelMode`, `closePanel`, `openNewRecordPanel
 
 ### Server-side pagination (opt-in per section)
 - Flip `page_sections.data.server_paging = true`.
-- The report function must accept `(p_page_index, p_page_size, p_search, p_sort_by, p_sort_dir)`
+- The report function must accept `(p_filter jsonb, p_paging jsonb, p_sorting jsonb, p_search text)`
   — all defaulted so no-arg calls still return everything — whitelist the sort column,
   and return `p_total_records`. Reference implementation: `crm.fn_get_leads_report`.
-- Column filters + XLSX export then act on the current page only.
+  - `p_paging` → `{page_index, page_size}`, parsed via `fn_get_paging`.
+  - `p_filter` → `{binding_name: value}` built from the section's per-column Filters row,
+    resolved via `fn_get_where_clause` (equality / `{"op": "IN"|"NOT IN"|"="|"!="|"<"|">"|"<="|">=", "val": ...}`).
+  - `p_sorting` → `{sort_by, sort_dir}` from the clicked column header.
+  - `p_search` → debounced free-text from the global search box.
+- XLSX export acts on the current page only.
 
 ---
 
