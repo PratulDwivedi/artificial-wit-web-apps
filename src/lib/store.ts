@@ -24,7 +24,13 @@ export interface ProfileData {
     id: number
     code: string
     name: string
-    data?: { logo_url?: string | null; datetime_format?: string; time_zone?: string } | null
+    data?: {
+      logo_url?:        string | null
+      datetime_format?: string
+      time_zone?:       string
+      currency?:        string
+      currency_symbol?: string
+    } | null
   }
   data: {
     profile_pic?: string | null
@@ -55,6 +61,8 @@ interface AppState {
   canEditMode:    boolean
   datetimeFormat: string | null
   timeZone:       string | null
+  currency:       string | null
+  currencySymbol: string | null
 
   setUserEmail:     (email: string | null) => void
   setUserName:      (name: string | null)  => void
@@ -80,6 +88,8 @@ export const useAppStore = create<AppState>((set) => ({
   canEditMode:    false,
   datetimeFormat: null,
   timeZone:       null,
+  currency:       null,
+  currencySymbol: null,
 
   setUserEmail:     (email)  => set({ userEmail: email }),
   setUserName:      (name)   => set({ userName: name }),
@@ -102,5 +112,7 @@ export const useAppStore = create<AppState>((set) => ({
     canEditMode:    p.data?.show_editor === true,
     datetimeFormat: p.tenant?.data?.datetime_format ?? p.data?.datetime_format ?? null,
     timeZone:       p.tenant?.data?.time_zone       ?? p.data?.time_zone       ?? null,
+    currency:       p.tenant?.data?.currency        ?? p.data?.currency        ?? null,
+    currencySymbol: p.tenant?.data?.currency_symbol ?? p.data?.currency_symbol ?? null,
   }),
 }))

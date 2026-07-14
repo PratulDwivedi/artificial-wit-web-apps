@@ -509,8 +509,7 @@ export function DynamicPage({ routeName }: Props) {
 
       {/* ── Record slide-over (panel mode) ─────────────────────────────────── */}
       {panelMode && panelOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.35)' }}
-          onMouseDown={e => { if (e.target === e.currentTarget) closePanel() }}>
+        <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.35)' }}>
           <div className="w-full max-w-[560px] h-full flex flex-col border-l shadow-2xl"
             style={{ background: 'var(--c-base)', borderColor: 'var(--c-border)' }}>
 

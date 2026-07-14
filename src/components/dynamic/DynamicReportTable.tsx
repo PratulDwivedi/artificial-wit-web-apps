@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
 import { HttpHelper } from '@/lib/http'
 import { formatDateTimeValue } from '@/lib/datetime'
+import { formatCurrencyValue } from '@/lib/currency'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
 import { resolveIcon } from '@/lib/icons'
@@ -68,6 +69,15 @@ function isHiddenByRule(hideWhen: unknown, row: Row): boolean {
   if (!hideWhen || typeof hideWhen !== 'object') return false
   const entries = Object.entries(hideWhen as Record<string, unknown>)
   return entries.length > 0 && entries.every(([k, v]) => String(resolvePath(row, k)) === String(v))
+}
+
+const NUMERIC_TYPES = new Set<number>([
+  APP_CONSTANTS.control_types.integer,
+  APP_CONSTANTS.control_types.decimal,
+  APP_CONSTANTS.control_types.currency,
+])
+function isNumericCol(col: PageSection['controls'][number]): boolean {
+  return NUMERIC_TYPES.has(col.control_type_id)
 }
 
 function cellStr(val: unknown): string {
@@ -226,6 +236,8 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
   const editMode       = useAppStore(s => s.editMode)
   const datetimeFormat = useAppStore(s => s.datetimeFormat)
   const timeZone       = useAppStore(s => s.timeZone)
+  const currency       = useAppStore(s => s.currency)
+  const currencySymbol = useAppStore(s => s.currencySymbol)
 
   const [rows,    setRows]    = useState<Row[]>([])
   const [loading, setLoading] = useState(false)
@@ -587,11 +599,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
                       </th>
                     )
                   }
+                  const numeric = isNumericCol(col)
                   return (
                     <th key={col.id}
-                      className="px-3 py-1 text-left font-semibold overflow-hidden"
+                      className={`px-3 py-1 font-semibold overflow-hidden ${numeric ? 'text-right' : 'text-left'}`}
                       style={{ color: 'var(--c-t3)', maxWidth: `${colMaxPx(col)}px` }}>
-                      <div className="flex items-center gap-1 min-w-0">
+                      <div className={`flex items-center gap-1 min-w-0 ${numeric ? 'justify-end' : ''}`}>
                         <button type="button"
                           onClick={() => handleSort(col.binding_name)}
                           className="inline-flex items-center gap-1 hover:opacity-80 transition select-none min-w-0"
@@ -744,11 +757,15 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
                       const val       = resolvePath(row, col.binding_name)
                       const isDateTime = col.control_type_id === control_types.dateAndTime
                       const isDate     = col.control_type_id === control_types.date
+                      const isCurrency = col.control_type_id === control_types.currency
+                      const numeric    = isNumericCol(col)
                       const str = (isDateTime || isDate)
                         ? formatDateTimeValue(val, datetimeFormat, timeZone, isDate)
+                        : isCurrency
+                        ? formatCurrencyValue(val, currencySymbol, currency)
                         : cellStr(val)
                       return (
-                        <td key={col.id} className="px-3 py-0.5 overflow-hidden"
+                        <td key={col.id} className={`px-3 py-0.5 overflow-hidden ${numeric ? 'text-right' : ''}`}
                           style={{ color: 'var(--c-t2)', maxWidth: `${colMaxPx(col)}px` }}>
                           <div className="truncate" title={str || undefined}>
                             {val === null || val === undefined

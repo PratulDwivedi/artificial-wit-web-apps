@@ -5,6 +5,7 @@ import { X, ExternalLink } from 'lucide-react'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
 import { formatDateTimeValue } from '@/lib/datetime'
+import { formatCurrencyValue } from '@/lib/currency'
 import { HtmlParser } from '@/components/common/HtmlParser'
 import ReactMarkdown from 'react-markdown'
 
@@ -36,6 +37,8 @@ function FieldValue({ control, row }: { control: ViewControl; row: Row }) {
   const { control_types } = APP_CONSTANTS
   const datetimeFormat = useAppStore(s => s.datetimeFormat)
   const timeZone       = useAppStore(s => s.timeZone)
+  const currency       = useAppStore(s => s.currency)
+  const currencySymbol = useAppStore(s => s.currencySymbol)
   const raw = resolvePath(row, control.binding_name)
   const ct  = control.control_type_id
 
@@ -48,6 +51,15 @@ function FieldValue({ control, row }: { control: ViewControl; row: Row }) {
     return (
       <span className="text-[13px]" style={{ color: 'var(--c-t1)' }}>
         {formatDateTimeValue(raw, datetimeFormat, timeZone, ct === control_types.date)}
+      </span>
+    )
+  }
+
+  // Currency — same tenant currency + symbol as the report table cells
+  if (ct === control_types.currency) {
+    return (
+      <span className="text-[13px]" style={{ color: 'var(--c-t1)' }}>
+        {formatCurrencyValue(raw, currencySymbol, currency)}
       </span>
     )
   }

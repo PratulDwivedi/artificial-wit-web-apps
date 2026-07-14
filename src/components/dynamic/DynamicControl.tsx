@@ -14,6 +14,7 @@ import { Bar, Line, Pie } from 'react-chartjs-2'
 import { HttpHelper } from '@/lib/http'
 import { APP_CONSTANTS } from '@/lib/constants'
 import { useAppStore } from '@/lib/store'
+import { formatCurrencyNumber } from '@/lib/currency'
 import type { DropdownOption } from '@/lib/schema'
 import { SearchableDropdown } from './SearchableDropdown'
 import { TreeViewSelect } from './TreeViewSelect'
@@ -357,7 +358,9 @@ export function DynamicControl({
 }: Props) {
   const { control_types, control_display_modes } = APP_CONSTANTS
   const router   = useRouter()
-  const editMode = useAppStore(s => s.editMode)
+  const editMode       = useAppStore(s => s.editMode)
+  const currencySymbol = useAppStore(s => s.currencySymbol)
+  const currency       = useAppStore(s => s.currency)
 
   const isHidden   = display_mode_id === control_display_modes.none_hidden
   const isDisabled = display_mode_id === control_display_modes.disabled
@@ -367,6 +370,11 @@ export function DynamicControl({
   // Dropdown / chart options loaded via binding_list_route_name
   const [options,        setOptions]        = useState<DropdownOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
+
+  // Currency field: show the grouped/formatted number while blurred, the raw
+  // editable number while focused. Only the raw numeric value ever reaches
+  // onChange — the formatted text is display-only and never posted.
+  const [currencyFocused, setCurrencyFocused] = useState(false)
   const [optionsError,   setOptionsError]   = useState<string | null>(null)
   const [uploading,      setUploading]      = useState(false)
   const fileRef       = useRef<HTMLInputElement>(null)
@@ -512,7 +520,6 @@ export function DynamicControl({
         )
 
       case control_types.decimal:
-      case control_types.currency:
         return (
           <input id={ctrlId} type="number"
             value={value != null ? String(value) : ''}
@@ -520,6 +527,32 @@ export function DynamicControl({
             disabled={isDisabled} required={isRequired}
             className={INPUT_CLASS} style={INPUT_STYLE} />
         )
+
+      case control_types.currency: {
+        const displayValue = currencyFocused
+          ? (value != null ? String(value) : '')
+          : formatCurrencyNumber(value, currency)
+        return (
+          <div className="relative">
+            {currencySymbol && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] pointer-events-none"
+                style={{ color: 'var(--c-t3)' }}>
+                {currencySymbol}
+              </span>
+            )}
+            <input id={ctrlId} type="text" inputMode="decimal"
+              value={displayValue}
+              onFocus={() => setCurrencyFocused(true)}
+              onBlur={() => setCurrencyFocused(false)}
+              onChange={e => {
+                const cleaned = e.target.value.replace(/[^0-9.-]/g, '')
+                onChange(binding_name, cleaned === '' ? null : parseFloat(cleaned))
+              }}
+              disabled={isDisabled} required={isRequired}
+              className={INPUT_CLASS} style={{ ...INPUT_STYLE, paddingLeft: currencySymbol ? '1.75rem' : undefined }} />
+          </div>
+        )
+      }
 
       // ── Date/time family ───────────────────────────────────────────────────
       case control_types.date:
