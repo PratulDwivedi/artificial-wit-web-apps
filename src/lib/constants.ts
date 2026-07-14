@@ -55,6 +55,7 @@ export const APP_CONSTANTS = {
     accessControl: 41,
     /** Row action that calls an RPC function (data: fn_name, params, confirm_message…) instead of navigating */
     functionCall: 42,
+    json: 43,
   },
   platforms: {
     both: 20,

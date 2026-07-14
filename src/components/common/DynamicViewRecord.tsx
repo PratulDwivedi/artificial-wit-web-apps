@@ -133,6 +133,18 @@ function FieldValue({ control, row }: { control: ViewControl; row: Row }) {
     )
   }
 
+  // JSON — pretty-printed, monospace
+  if (ct === control_types.json) {
+    let pretty = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+    try { pretty = JSON.stringify(JSON.parse(pretty), null, 2) } catch { /* show raw text as-is if not valid JSON */ }
+    return (
+      <pre className="text-[12px] font-mono whitespace-pre-wrap rounded-lg border px-3 py-2 leading-relaxed"
+        style={{ borderColor: 'var(--c-border)', background: 'var(--c-hover)', color: 'var(--c-t2)' }}>
+        {pretty}
+      </pre>
+    )
+  }
+
   // Textarea / long text — preserve whitespace
   if (ct === control_types.textArea) {
     return (

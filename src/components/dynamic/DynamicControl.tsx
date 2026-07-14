@@ -597,6 +597,33 @@ export function DynamicControl({
             className={`${INPUT_CLASS} resize-y`} style={INPUT_STYLE} />
         )
 
+      // ── JSON (raw text, validated) ──────────────────────────────────────────
+      case control_types.json: {
+        const raw = typeof value === 'string' ? value : value != null ? JSON.stringify(value) : ''
+        let invalid = false
+        if (raw.trim() !== '') {
+          try { JSON.parse(raw) } catch { invalid = true }
+        }
+        return (
+          <div>
+            <textarea id={ctrlId} value={raw}
+              onChange={e => onChange(binding_name, e.target.value)}
+              onBlur={e => {
+                const t = e.target.value
+                if (!t.trim()) return
+                try { onChange(binding_name, JSON.stringify(JSON.parse(t), null, 2)) } catch { /* leave raw text, error shown below */ }
+              }}
+              disabled={isDisabled} required={isRequired}
+              rows={6} spellCheck={false}
+              className={`${INPUT_CLASS} resize-y font-mono text-[12px]`}
+              style={{ ...INPUT_STYLE, borderColor: invalid ? '#ef4444' : INPUT_STYLE.borderColor }} />
+            {invalid && (
+              <p className="mt-1 text-[11px]" style={{ color: '#ef4444' }}>Invalid JSON</p>
+            )}
+          </div>
+        )
+      }
+
       // ── Toggle controls ────────────────────────────────────────────────────
       case control_types.checkbox:
         return (
