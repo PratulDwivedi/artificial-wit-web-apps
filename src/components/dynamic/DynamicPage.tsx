@@ -508,17 +508,21 @@ export function DynamicPage({ routeName }: Props) {
                 .filter(s => s.child_display_mode_id === APP_CONSTANTS.child_display_modes.form
                           || s.child_display_mode_id === APP_CONSTANTS.child_display_modes.dataTable)
                 .map(section => (
-                  <SectionRenderer
-                    key={`panel-${section.id}-${formResetKey}`}
-                    section={section}
-                    schema={schema}
-                    recordId={activeRecordId}
-                    viewTrigger={viewTrigger}
-                    onDataChange={handleSectionData}
-                    sharedData={sharedData}
-                    initialData={initialRecordData ?? undefined}
-                    onRecordSelect={handleRecordSelect}
-                  />
+                  // shrink-0: without this, a section card's own `overflow-hidden` gives it an
+                  // effective flex min-height of 0, so the flex column crushes it to fit instead
+                  // of overflowing — silently clipping fields instead of letting the panel scroll.
+                  <div key={`panel-${section.id}-${formResetKey}`} className="shrink-0">
+                    <SectionRenderer
+                      section={section}
+                      schema={schema}
+                      recordId={activeRecordId}
+                      viewTrigger={viewTrigger}
+                      onDataChange={handleSectionData}
+                      sharedData={sharedData}
+                      initialData={initialRecordData ?? undefined}
+                      onRecordSelect={handleRecordSelect}
+                    />
+                  </div>
                 ))}
             </div>
 
