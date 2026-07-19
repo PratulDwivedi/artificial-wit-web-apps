@@ -514,6 +514,18 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
         )
       })}
 
+      {/* Clear search & column filters — only shown while a search/filter is active */}
+      {filtersActive && (
+        <button
+          onClick={() => { setSearch(''); setColFilters({}) }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition hover:opacity-80"
+          style={{ color: '#ef4444' }}
+        >
+          <X size={11} />
+          Clear search &amp; filters
+        </button>
+      )}
+
       {/* Column filters toggle */}
       <button
         onClick={() => setShowFilters(v => !v)}
@@ -544,18 +556,15 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
     </div>
   )
 
+  // The table (columns + header) always renders once the fetch has succeeded — even with
+  // zero matching rows — so a no-match search/filter never strands the user without a way
+  // to see or clear it. Only the tbody switches between real rows and an empty-state row.
+  const colSpan = 1 + (hasRowSelect ? 1 : 0) + tableCols.length
+
   const tableContent = (
     <>
-      {toolbar}
       <div className="overflow-x-auto">
-        {rows.length === 0 ? (
-          <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>
-            {filtersActive ? 'No records match your search' : 'No records found'}
-          </p>
-        ) : processed.length === 0 ? (
-          <p className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>No records match your search</p>
-        ) : (
-          <table className="w-max min-w-full text-[12px] border-collapse">
+        <table className="w-max min-w-full text-[12px] border-collapse">
             <colgroup>
               <col style={{ width: '44px', minWidth: '44px' }} />
               {hasRowSelect && <col style={{ width: '40px', minWidth: '40px' }} />}
@@ -677,7 +686,13 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
               )}
             </thead>
             <tbody>
-              {pageRows.map((row, i) => {
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td colSpan={colSpan} className="p-6 text-[13px] text-center" style={{ color: 'var(--c-t5)' }}>
+                    {filtersActive ? 'No records match your search' : 'No records found'}
+                  </td>
+                </tr>
+              ) : pageRows.map((row, i) => {
                 const key       = rowKey(row)
                 const isChecked = selectedKeys.has(key)
                 const rowIndex  = (page - 1) * pageSize + i + 1
@@ -792,8 +807,7 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
                 )
               })}
             </tbody>
-          </table>
-        )}
+        </table>
       </div>
       {totalRecords > 0 && (
         <Pagination
@@ -818,7 +832,12 @@ export function DynamicReportTable({ section, schema, viewTrigger = 0, onRecordS
     <p className="p-4 text-[12px]" style={{ color: '#ef4444' }}>{error}</p>
   )
 
-  const body = loading ? loadingEl : error ? errorEl : tableContent
+  const body = (
+    <>
+      {toolbar}
+      {loading ? loadingEl : error ? errorEl : tableContent}
+    </>
+  )
 
   // Confirm dialog for functionCall row actions (shared by both render branches)
   const fnCallDialog = (

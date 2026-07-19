@@ -7,6 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 # Platform rules (dynamic pages, custom pages, UI, DB)
 
 **Full guide: `docs/PLATFORM_GUIDE.md` — read it before building any page or DB function.**
+**Current state + pending work: `docs/PROJECT_STATUS.md` — read at session start.**
 
 Condensed rules that always apply:
 

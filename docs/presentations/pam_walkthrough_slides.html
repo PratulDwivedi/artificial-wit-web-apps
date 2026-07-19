@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement & Asset Management — Product Walkthrough</title>
+<style>
+  :root {
+    --red: #dc2626; --red-soft: rgba(220,38,38,.08);
+    --green: #16a34a; --green-soft: rgba(22,163,74,.1);
+    --amber: #d97706; --amber-soft: rgba(217,119,6,.1);
+    --blue: #2563eb; --blue-soft: rgba(37,99,235,.1);
+    --ink: #111827; --ink2: #374151; --ink3: #6b7280; --ink4: #9ca3af;
+    --bg: #f5f7fa; --panel: #ffffff; --line: rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--ink); overflow: hidden; height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .deck { height: 100vh; position: relative; }
+  .slide {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    padding: 56px 72px 96px; overflow-y: auto;
+  }
+  .slide.on { display: flex; animation: fade .35s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .kicker { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--red); margin-bottom: 10px; }
+  h1 { font-size: 46px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+  h2 { font-size: 32px; font-weight: 750; letter-spacing: -.015em; margin-bottom: 6px; }
+  .sub { font-size: 16px; color: var(--ink3); margin-bottom: 28px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* Flow chips */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 8px 0 20px; }
+  .fstep {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 18px; min-width: 150px; position: relative; margin-right: 34px; margin-bottom: 12px;
+  }
+  .fstep:after {
+    content: '→'; position: absolute; right: -26px; top: 50%; transform: translateY(-50%);
+    color: var(--ink4); font-size: 20px; font-weight: 700;
+  }
+  .fstep:last-child { margin-right: 0; }
+  .fstep:last-child:after { content: ''; }
+  .fstep .n { font-size: 11px; font-weight: 700; color: var(--red); letter-spacing: .08em; }
+  .fstep .t { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .fstep .d { font-size: 12px; color: var(--ink3); margin-top: 3px; }
+  .fstep.green .n { color: var(--green); }
+  .fstep.amber .n { color: var(--amber); }
+  .fstep.blue .n { color: var(--blue); }
+
+  /* Step-by-step list */
+  .steps { counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step:before {
+    counter-increment: s; content: counter(s);
+    width: 30px; height: 30px; border-radius: 50%; background: var(--red); color: #fff;
+    font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; flex: none;
+    margin-top: 1px;
+  }
+  .step b { font-size: 15px; }
+  .step p { font-size: 13.5px; color: var(--ink3); margin-top: 2px; line-height: 1.45; }
+  .step .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 8px; background: var(--red-soft); color: var(--red); }
+
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 10px; margin: 2px 3px 2px 0; }
+  .tag.red { background: var(--red-soft); color: var(--red); }
+  .tag.green { background: var(--green-soft); color: var(--green); }
+  .tag.amber { background: var(--amber-soft); color: var(--amber); }
+  .tag.blue { background: var(--blue-soft); color: var(--blue); }
+  .tag.gray { background: rgba(107,114,128,.1); color: var(--ink3); }
+
+  .benefit { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: var(--ink2); margin-bottom: 10px; line-height: 1.45; }
+  .benefit:before { content: '✓'; color: var(--green); font-weight: 800; flex: none; }
+
+  .statuses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+  /* Nav */
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center;
+    justify-content: space-between; padding: 14px 28px; background: var(--panel);
+    border-top: 1px solid var(--line); z-index: 10;
+  }
+  .nav button {
+    font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 20px;
+    border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink2); cursor: pointer;
+  }
+  .nav button.primary { background: var(--red); border-color: var(--red); color: #fff; }
+  .nav button:disabled { opacity: .35; cursor: default; }
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(0,0,0,.14); cursor: pointer; }
+  .dot.on { background: var(--red); width: 22px; border-radius: 5px; }
+  .counter { font-size: 12px; color: var(--ink4); min-width: 56px; text-align: right; }
+
+  .brandbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--red), #f87171); z-index: 10; }
+  .foot-note { font-size: 11.5px; color: var(--ink4); margin-top: auto; padding-top: 18px; }
+
+  .titlewrap { display: flex; flex-direction: column; justify-content: center; height: 100%; max-width: 900px; }
+  .title-tags { margin-top: 26px; }
+
+  @media (max-width: 900px) {
+    .slide { padding: 36px 24px 100px; }
+    h1 { font-size: 32px; } h2 { font-size: 24px; }
+    .grid2, .grid3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="brandbar"></div>
+<div class="deck" id="deck">
+
+  <!-- 1 · Title -->
+  <section class="slide on">
+    <div class="titlewrap">
+      <div class="kicker">Artificial Wit · Product Walkthrough</div>
+      <h1>Procurement &amp;<br>Asset Management</h1>
+      <p class="sub" style="margin-top:16px; font-size:18px;">
+        One system for the full journey — from purchase request to approval, ordering,
+        receiving, and managing every asset through its life.
+      </p>
+      <div class="title-tags">
+        <span class="tag red">Purchase Requisitions</span>
+        <span class="tag red">Approvals</span>
+        <span class="tag red">Purchase Orders</span>
+        <span class="tag red">Goods Receipts</span>
+        <span class="tag blue">Asset Register</span>
+        <span class="tag blue">Allocation &amp; Transfers</span>
+        <span class="tag blue">Maintenance</span>
+        <span class="tag gray">Multi-tenant · Audit-ready</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · What's inside -->
+  <section class="slide">
+    <div class="kicker">Overview</div>
+    <h2>What's inside the module</h2>
+    <p class="sub">Two connected workspaces in your sidebar — Procurement and Asset Management.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="font-size:17px; margin-bottom:10px;">🛒 Procurement</h3>
+        <div class="benefit">Purchase Requisitions — request what you need, with line items and estimated cost</div>
+        <div class="benefit">Approval Inbox — approvers see everything waiting on them in one place</div>
+        <div class="benefit">Purchase Orders — vendor, items, discounts and taxes computed automatically</div>
+        <div class="benefit">Goods Receipts — record what actually arrived against each PO</div>
+        <div class="benefit">Masters — Vendors, Items, Warehouses, Units, Tax Codes</div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:17px; margin-bottom:10px;">🖥️ Asset Management</h3>
+        <div class="benefit">Asset Register — every asset with tag, category, location, value and warranty</div>
+        <div class="benefit">Allocation — hand assets to employees; one click to take them back</div>
+        <div class="benefit">Transfers — move assets between locations, users or departments with approval</div>
+        <div class="benefit">Work Orders — preventive and breakdown maintenance with checklists and costs</div>
+        <div class="benefit">Full movement history — who had what, when, and in what condition</div>
+      </div>
+    </div>
+    <p class="foot-note">Everything is configured per company (tenant) — data is fully isolated and every action is stamped with who did it and when.</p>
+  </section>
+
+  <!-- 3 · P2P flow -->
+  <section class="slide">
+    <div class="kicker">Workflow 1 · Procure-to-Pay</div>
+    <h2>The purchase journey</h2>
+    <p class="sub">A request travels through five stages. Documents are auto-numbered (PR/00001, PO/00001…) and each stage validates the previous one.</p>
+    <div class="flow">
+      <div class="fstep"><div class="n">STEP 1</div><div class="t">Requisition</div><div class="d">User requests items with quantities & estimates</div></div>
+      <div class="fstep amber"><div class="n">STEP 2</div><div class="t">Approval</div><div class="d">Routed by amount to the right approvers</div></div>
+      <div class="fstep"><div class="n">STEP 3</div><div class="t">Purchase Order</div><div class="d">Sent to the chosen vendor with taxes computed</div></div>
+      <div class="fstep blue"><div class="n">STEP 4</div><div class="t">Goods Receipt</div><div class="d">Record arrival; accept or reject quantities</div></div>
+      <div class="fstep green"><div class="n">STEP 5</div><div class="t">Invoice &amp; Pay</div><div class="d">3-way match &amp; payment (phase 2)</div></div>
+    </div>
+    <div class="grid3">
+      <div class="card">
+        <b style="font-size:14px;">Smart approval routing</b>
+        <p style="font-size:13px; color:var(--ink3); margin-top:6px;">Small purchases can auto-approve; larger amounts follow multi-step chains by role or named approver — including delegation when someone is on leave.</p>
+      </div>
+      <div class="card">
+        <b style="font-size:14px;">Nothing slips through</b>
+        <p style="font-size:13px; color:var(--ink3); margin-top:6px;">You can't receive goods against an unapproved PO, and received + rejected quantities can never exceed what was delivered.</p>
+      </div>
+      <div class="card">
+        <b style="font-size:14px;">Full traceability</b>
+        <p style="font-size:13px; color:var(--ink3); margin-top:6px;">Every document links back: GRN → PO → PR. Auditors can follow any purchase end to end.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · Setup masters -->
+  <section class="slide">
+    <div class="kicker">Getting started</div>
+    <h2>Step 0 — Set up your masters (one time)</h2>
+    <p class="sub">Before the first purchase, spend 10 minutes setting up reference data. All under <b>Procurement</b> in the sidebar.</p>
+    <div class="steps">
+      <div class="step"><div><b>Vendors</b> — <span class="pill">Procurement → Vendors → + New</span><p>Name is enough to start; add GSTIN, payment terms and credit limit as you go. Vendor codes are generated automatically (VEN/0001).</p></div></div>
+      <div class="step"><div><b>Items</b> — <span class="pill">Procurement → Items → + New</span><p>Your purchase catalog. Mark "Is Asset Item" for things that become trackable assets (laptops, machines). Set UoM and tax code so POs compute totals correctly.</p></div></div>
+      <div class="step"><div><b>Warehouses</b> — <span class="pill">Procurement → Warehouses</span><p>Where goods are received. One "Main Store" is enough to begin.</p></div></div>
+      <div class="step"><div><b>Units &amp; Tax Codes</b> — <span class="pill">already seeded</span><p>EA, BOX, KG, LTR, MTR, HR and GST 5/12/18% + Exempt come pre-loaded. Edit or add your own any time.</p></div></div>
+    </div>
+    <p class="foot-note">Departments, cost centers and locations are shared company-wide masters — they are used across modules, not just procurement.</p>
+  </section>
+
+  <!-- 5 · PR -->
+  <section class="slide">
+    <div class="kicker">Workflow 1 · Step 1</div>
+    <h2>Raise a Purchase Requisition</h2>
+    <p class="sub"><b>Procurement → Purchase Requisitions</b></p>
+    <div class="steps">
+      <div class="step"><div><b>Fill the details</b><p>Title (e.g. "Laptops for new joiners"), priority, department, cost center and the date you need it by.</p></div></div>
+      <div class="step"><div><b>Add line items</b><p>Pick items from the catalog (or type a free-text description for new things), set quantity and estimated unit price. The estimated total rolls up automatically.</p></div></div>
+      <div class="step"><div><b>Save</b><p>The PR gets its number (PR/00001) and stays in <span class="tag gray">draft</span> — you can keep editing until you submit.</p></div></div>
+      <div class="step"><div><b>Submit for approval</b><p>Click the green <b>Submit ✓</b> action on the list row. The system picks the right approval chain based on the amount. If no approval is configured for that range, it approves instantly.</p></div></div>
+    </div>
+    <div class="statuses">
+      <span class="tag gray">draft</span><span class="tag amber">in_approval</span>
+      <span class="tag green">approved</span><span class="tag red">rejected</span>
+      <span class="tag amber">returned</span><span class="tag blue">ordered</span>
+    </div>
+    <p class="foot-note">Returned = sent back for rework: fix and re-submit. Only draft/returned PRs can be edited or deleted, and only by their creator (or an admin).</p>
+  </section>
+
+  <!-- 6 · Approvals -->
+  <section class="slide">
+    <div class="kicker">Workflow 1 · Step 2</div>
+    <h2>Approve, reject or return</h2>
+    <p class="sub"><b>Procurement → Approval Inbox</b> — one screen for everything waiting on you.</p>
+    <div class="steps">
+      <div class="step"><div><b>Open your inbox</b><p>You only see documents where <i>you</i> are the current approver — by name, by role, or as someone's delegate while they're away.</p></div></div>
+      <div class="step"><div><b>Review the document</b><p>Each row shows the document number, amount, current approval step and who initiated it.</p></div></div>
+      <div class="step"><div><b>Act with one click</b><p><span class="tag green">✓ Approve</span> moves it to the next step (or completes it). <span class="tag red">✗ Reject</span> stops it. <span class="tag amber">← Return</span> sends it back to the requester for changes.</p></div></div>
+    </div>
+    <div class="card" style="margin-top:18px;">
+      <b style="font-size:14px;">How routing works (configurable per company)</b>
+      <p style="font-size:13px; color:var(--ink3); margin-top:6px;">
+        Approval chains are defined per document type with amount ranges — e.g. up to ₹50,000: department head only;
+        above that: department head → finance → director. Steps can target a role or a named person, support
+        parallel approvers, escalation timers, and out-of-office delegation. The same engine powers PRs, POs,
+        asset transfers, disposals and invoices.
+      </p>
+    </div>
+  </section>
+
+  <!-- 7 · PO -->
+  <section class="slide">
+    <div class="kicker">Workflow 1 · Step 3</div>
+    <h2>Create the Purchase Order</h2>
+    <p class="sub"><b>Procurement → Purchase Orders</b></p>
+    <div class="steps">
+      <div class="step"><div><b>Pick the vendor</b><p>Choose from your vendor master (blacklisted vendors don't appear). Set PO date and expected delivery.</p></div></div>
+      <div class="step"><div><b>Add the lines</b><p>Item, quantity, unit price, discount % and tax code per line.</p></div></div>
+      <div class="step"><div><b>Totals compute themselves</b><p>Line total = qty × price − discount + tax (from the tax code's rate). Header subtotal, discount, tax and grand total roll up automatically — no calculator needed.</p></div></div>
+      <div class="step"><div><b>Save &amp; track</b><p>PO/00001 is created in draft. Its status then follows the real world: <span class="tag green">approved</span> → <span class="tag blue">sent_to_vendor</span> → <span class="tag blue">partially_received</span> → <span class="tag green">received</span>.</p></div></div>
+    </div>
+    <p class="foot-note">POs can reference the approved PR they fulfil, keeping the request→order link intact for audit.</p>
+  </section>
+
+  <!-- 8 · GRN -->
+  <section class="slide">
+    <div class="kicker">Workflow 1 · Step 4</div>
+    <h2>Receive the goods</h2>
+    <p class="sub"><b>Procurement → Goods Receipts</b> — when the delivery truck arrives.</p>
+    <div class="steps">
+      <div class="step"><div><b>Select the PO</b><p>The dropdown only shows POs that are actually receivable (approved / sent / partially received). Vendor fills in automatically.</p></div></div>
+      <div class="step"><div><b>Record the delivery</b><p>Receipt date, warehouse, the vendor's challan number and vehicle — everything the gate register needs.</p></div></div>
+      <div class="step"><div><b>Enter quantities per line</b><p>Received, accepted, rejected (with reason). The system blocks impossible entries — accepted + rejected can never exceed received.</p></div></div>
+      <div class="step"><div><b>GRN/00001 is created</b><p>Prices are pulled from the PO lines automatically, so goods-in value is always consistent with what was ordered.</p></div></div>
+    </div>
+    <div class="card" style="margin-top:18px;">
+      <b style="font-size:14px;">Serial numbers for assets</b>
+      <p style="font-size:13px; color:var(--ink3); margin-top:6px;">Receipt lines can carry serial numbers — the foundation for auto-creating asset records from deliveries of asset items (upcoming enhancement).</p>
+    </div>
+  </section>
+
+  <!-- 9 · Asset lifecycle -->
+  <section class="slide">
+    <div class="kicker">Workflow 2 · Asset Lifecycle</div>
+    <h2>Every asset, cradle to grave</h2>
+    <p class="sub">Assets carry a permanent tag (AST/00001) and a complete movement history.</p>
+    <div class="flow">
+      <div class="fstep"><div class="n">REGISTER</div><div class="t">Add to register</div><div class="d">Tag, category, location, value, warranty</div></div>
+      <div class="fstep green"><div class="n">ALLOCATE</div><div class="t">Hand to employee</div><div class="d">Custody recorded with expected return</div></div>
+      <div class="fstep blue"><div class="n">TRANSFER</div><div class="t">Move</div><div class="d">Between locations / users / departments</div></div>
+      <div class="fstep amber"><div class="n">MAINTAIN</div><div class="t">Service &amp; repair</div><div class="d">Work orders with checklists &amp; costs</div></div>
+      <div class="fstep"><div class="n">RETIRE</div><div class="t">Dispose</div><div class="d">Scrap / sell / write-off with approval</div></div>
+    </div>
+    <div class="grid3">
+      <div class="card"><b style="font-size:14px;">Asset statuses</b>
+        <div class="statuses">
+          <span class="tag gray">in_stock</span><span class="tag green">allocated</span>
+          <span class="tag blue">in_transfer</span><span class="tag amber">under_repair</span>
+          <span class="tag red">disposed</span>
+        </div>
+      </div>
+      <div class="card"><b style="font-size:14px;">Depreciation-ready</b>
+        <p style="font-size:13px; color:var(--ink3); margin-top:6px;">Each asset carries method (SLM / WDV), useful life and salvage value — schedules and postings plug in when finance needs them.</p>
+      </div>
+      <div class="card"><b style="font-size:14px;">Warranty &amp; AMC</b>
+        <p style="font-size:13px; color:var(--ink3); margin-top:6px;">Expiry dates on record so renewals never surprise you.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · Register + allocate -->
+  <section class="slide">
+    <div class="kicker">Workflow 2 · Steps 1–2</div>
+    <h2>Register and allocate assets</h2>
+    <p class="sub"><b>Asset Management → Asset Register / Asset Allocation</b></p>
+    <div class="grid2">
+      <div class="card">
+        <b style="font-size:15px;">Register an asset</b>
+        <div class="steps" style="margin-top:12px;">
+          <div class="step"><div><b>Asset Register → New</b><p>Name, category and location are required; the asset tag auto-generates if you leave it blank.</p></div></div>
+          <div class="step"><div><b>Add what you know</b><p>Serial number, vendor, purchase price and date, warranty expiry, depreciation method. All editable later.</p></div></div>
+          <div class="step"><div><b>Save</b><p>The asset appears in the register as <span class="tag gray">in_stock</span>, ready to allocate.</p></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <b style="font-size:15px;">Allocate &amp; take back</b>
+        <div class="steps" style="margin-top:12px;">
+          <div class="step"><div><b>Asset Allocation page</b><p>Pick the asset and the employee, optionally an expected return date. Save — custody is recorded and the asset shows <span class="tag green">allocated</span> with the holder's name.</p></div></div>
+          <div class="step"><div><b>Deallocate in one click</b><p>On the register list, the <span class="tag amber">Deallocate</span> action returns the asset to stock — with the movement logged.</p></div></div>
+          <div class="step"><div><b>History is automatic</b><p>Every allocate / return / transfer writes a movement record: from whom, to whom, when, in what condition.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 · Work orders -->
+  <section class="slide">
+    <div class="kicker">Workflow 2 · Maintenance</div>
+    <h2>Maintenance work orders</h2>
+    <p class="sub"><b>Asset Management → Work Orders</b> — breakdowns and preventive service alike.</p>
+    <div class="steps">
+      <div class="step"><div><b>Create the work order</b><p>Pick the asset, describe the problem, set type (corrective / preventive / calibration…), priority, and assign a technician or an outsourced vendor. WO/00001 is issued.</p></div></div>
+      <div class="step"><div><b>Build the checklist</b><p>Add task rows — "Check oil level", "Replace filter" — mark the mandatory ones. Technicians tick them off with readings and remarks.</p></div></div>
+      <div class="step"><div><b>Track costs</b><p>Labor, vendor and other costs roll up into a total per work order — so you know exactly what each asset costs to keep alive.</p></div></div>
+      <div class="step"><div><b>Close the loop</b><p>Status flows <span class="tag gray">open</span> → <span class="tag blue">in_progress</span> → <span class="tag green">completed</span> → <span class="tag green">verified/closed</span>. Downtime hours are captured for reliability reporting.</p></div></div>
+    </div>
+    <p class="foot-note">Preventive maintenance plans (monthly/quarterly schedules that auto-generate work orders) are built into the data model — scheduling automation is on the roadmap.</p>
+  </section>
+
+  <!-- 12 · Governance -->
+  <section class="slide">
+    <div class="kicker">Trust &amp; Control</div>
+    <h2>Built-in governance</h2>
+    <p class="sub">The controls your auditors and finance team will ask about — on by default.</p>
+    <div class="grid2">
+      <div class="card">
+        <div class="benefit"><span><b>Gap-free numbering</b> — PR/PO/GRN/asset/WO numbers come from locked sequences; no duplicates, no gaps, optionally per fiscal year.</span></div>
+        <div class="benefit"><span><b>Status guards</b> — submitted documents can't be edited; allocated assets can't be deleted; referenced masters can't be removed.</span></div>
+        <div class="benefit"><span><b>Ownership rules</b> — you can only delete your own draft requisitions; asset deletion is admin-only.</span></div>
+      </div>
+      <div class="card">
+        <div class="benefit"><span><b>Complete audit trail</b> — every record stamps who created and last changed it; every approval action and asset movement is logged permanently.</span></div>
+        <div class="benefit"><span><b>Company isolation</b> — multi-tenant security at the database level; one company can never see another's data.</span></div>
+        <div class="benefit"><span><b>Record-level access</b> — private / protected / public visibility per record, with role-based access on protected items.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · Roadmap -->
+  <section class="slide">
+    <div class="kicker">What's next</div>
+    <h2>Live today, growing tomorrow</h2>
+    <div class="grid2" style="margin-top:8px;">
+      <div class="card">
+        <b style="font-size:15px; color:var(--green);">✓ Available now</b>
+        <div style="margin-top:10px;">
+          <span class="tag green">PR → Approval → PO → GRN</span>
+          <span class="tag green">Approval inbox with delegation</span>
+          <span class="tag green">Vendor / Item / Warehouse masters</span>
+          <span class="tag green">Asset register &amp; allocation</span>
+          <span class="tag green">Transfers (with receive flow)</span>
+          <span class="tag green">Maintenance work orders</span>
+          <span class="tag green">Auto numbering &amp; audit trail</span>
+        </div>
+      </div>
+      <div class="card">
+        <b style="font-size:15px; color:var(--amber);">◔ Roadmap</b>
+        <div style="margin-top:10px;">
+          <span class="tag amber">Vendor invoices &amp; payments (3-way match)</span>
+          <span class="tag amber">RFQ &amp; quotation comparison</span>
+          <span class="tag amber">Auto asset creation from GRN serials</span>
+          <span class="tag amber">Preventive maintenance scheduling</span>
+          <span class="tag amber">Depreciation posting runs</span>
+          <span class="tag amber">Asset audits (physical verification)</span>
+          <span class="tag amber">Helpdesk with SLA tracking</span>
+          <span class="tag amber">Procurement &amp; asset dashboards</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:auto; text-align:center; padding-top:30px;">
+      <div style="font-size:26px; font-weight:800;">Thank you</div>
+      <p style="font-size:14px; color:var(--ink3); margin-top:6px;">Questions? Let's walk through it live in the app.</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev">← Prev</button>
+  <div class="dots" id="dots"></div>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span class="counter" id="counter"></span>
+    <button class="primary" id="next">Next →</button>
+  </div>
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const dotsEl = document.getElementById('dots');
+  let i = 0;
+  slides.forEach((_, idx) => {
+    const d = document.createElement('div');
+    d.className = 'dot'; d.onclick = () => go(idx);
+    dotsEl.appendChild(d);
+  });
+  const dots = [...dotsEl.children];
+  function go(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, idx) => s.classList.toggle('on', idx === i));
+    dots.forEach((d, idx) => d.classList.toggle('on', idx === i));
+    document.getElementById('counter').textContent = (i + 1) + ' / ' + slides.length;
+    document.getElementById('prev').disabled = i === 0;
+    document.getElementById('next').disabled = i === slides.length - 1;
+  }
+  document.getElementById('prev').onclick = () => go(i - 1);
+  document.getElementById('next').onclick = () => go(i + 1);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(i + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(i - 1);
+    if (e.key === 'Home') go(0);
+    if (e.key === 'End') go(slides.length - 1);
+  });
+  go(0);
+</script>
+</body>
+</html>
